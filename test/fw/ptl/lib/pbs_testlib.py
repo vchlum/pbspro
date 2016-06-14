@@ -57,8 +57,6 @@
 import sys
 import os
 import socket
-import pwd
-import grp
 import logging
 import time
 import re
@@ -70,6 +68,9 @@ import copy
 import datetime
 import traceback
 import threading
+import subprocess
+import platform
+import calendar
 from operator import itemgetter
 from collections import OrderedDict
 from distutils.version import LooseVersion
@@ -92,11 +93,12 @@ except:
         raise ImportError
     API_OK = False
 
-from ptl.lib.pbs_api_to_cli import api_to_cli
-from ptl.utils.pbs_dshutils import DshUtils
-from ptl.utils.pbs_procutils import ProcUtils
-from ptl.utils.pbs_cliutils import CliUtils
-from ptl.utils.pbs_fileutils import FileUtils, FILE_TAIL
+import ptl
+from ptl.utils.pbs_dshutils import *
+from ptl.utils.pbs_cliutils import *
+from ptl.utils.pbs_procutils import *
+from ptl.lib.pbs_api_to_cli import *
+from ptl.utils.pbs_fileutils import *
 
 # suppress logging exceptions
 logging.raiseExceptions = False
@@ -254,17 +256,11 @@ class PtlConfig(object):
 
     def __init__(self, conf=None):
         self.options = {
-            'PTL_SUDO_CMD': 'sudo -H',
-            'PTL_RSH_CMD': 'ssh',
-            'PTL_CP_CMD': 'scp -p',
             'PTL_EXPECT_MAX_ATTEMPTS': 60,
             'PTL_EXPECT_INTERVAL': 0.5,
             'PTL_UPDATE_ATTRIBUTES': True,
         }
         self.handlers = {
-            'PTL_SUDO_CMD': DshUtils.set_sudo_cmd,
-            'PTL_RSH_CMD': DshUtils.set_rsh_cmd,
-            'PTL_CP_CMD': DshUtils.set_copy_cmd,
             'PTL_EXPECT_MAX_ATTEMPTS': Server.set_expect_max_attempts,
             'PTL_EXPECT_INTERVAL': Server.set_expect_interval,
             'PTL_UPDATE_ATTRIBUTES': Server.set_update_attributes
@@ -277,7 +273,7 @@ class PtlConfig(object):
             lines = []
         for line in lines:
             line = line.strip()
-            if (line.startswith('#') or (line == '')):
+            if line.startswith('#') or (line == ''):
                 continue
             try:
                 k, v = line.split('=', 1)
@@ -1049,112 +1045,6 @@ class PbsTypeJobId(str):
 
     def __str__(self):
         return str(self.value)
-
-
-class PbsUser(object):
-
-    """
-    The PbsUser type augments a PBS username to associate it to groups to
-    which the user belongs
-
-    name - The user name referenced
-
-    uid - uid of user
-
-    groups - The list of PbsGroup objects the user belongs to
-    """
-
-    def __init__(self, name, uid=None, groups=None):
-        self.name = name
-        if uid is not None:
-            self.uid = int(uid)
-        else:
-            self.uid = None
-        self.home = None
-        self.gid = None
-        self.shell = None
-        self.gecos = None
-
-        try:
-            _user = pwd.getpwnam(self.name)
-            self.uid = _user.pw_uid
-            self.home = _user.pw_dir
-            self.gid = _user.pw_gid
-            self.shell = _user.pw_shell
-            self.gecos = _user.pw_gecos
-        except:
-            pass
-
-        if groups is None:
-            self.groups = []
-        elif isinstance(groups, list):
-            self.groups = groups
-        else:
-            self.groups = groups.split(",")
-
-        for g in self.groups:
-            if isinstance(g, str):
-                self.groups.append(PbsGroup(g, users=[self]))
-            elif self not in g.users:
-                g.users.append(self)
-
-    def __repr__(self):
-        return str(self.name)
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __int__(self):
-        return int(self.uid)
-
-
-class PbsGroup(object):
-
-    """
-    The PbsGroup type augments a PBS groupname to associate it to users to
-    which the group belongs
-
-    name - The group name referenced
-
-    gid - gid of group
-
-    users - The list of PbsUser objects the group belongs to
-    """
-
-    def __init__(self, name, gid=None, users=None):
-        self.name = name
-        if gid is not None:
-            self.gid = int(gid)
-        else:
-            self.gid = None
-
-        try:
-            _group = grp.getgrnam(self.name)
-            self.gid = _group.gr_gid
-        except:
-            pass
-
-        if users is None:
-            self.users = []
-        elif isinstance(users, list):
-            self.users = users
-        else:
-            self.users = users.split(",")
-
-        for u in self.users:
-            if isinstance(u, str):
-                self.users.append(PbsUser(u, groups=[self]))
-            elif self not in u.groups:
-                u.groups.append(self)
-
-    def __repr__(self):
-        return str(self.name)
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __int__(self):
-        return int(self.gid)
 
 
 class BatchUtils(object):
@@ -3900,7 +3790,7 @@ class PBSService(PBSObject):
 
         ret = self.du.run_cmd(self.hostname, cmd, sudo=True,
                               as_script=as_script, wait_on_script=wait_on,
-                              level=logging.INFOCLI, logerr=False)
+                              level=LOG_INFOCLI, logerr=False)
         if ret['rc'] != 0:
             raise PbsServiceError(rv=False, rc=ret['rc'], msg=ret['err'])
 
@@ -4002,7 +3892,7 @@ class PBSService(PBSObject):
                         lines = open(filename)
                     else:
                         lines = self.du.cat(self.hostname, filename, sudo=sudo,
-                                            level=logging.DEBUG2)['out']
+                                            level=LOG_DEBUG2)['out']
                 # tail is not a standard, e.g. on Solaris it does not recognize
                 # -n. We circumvent this problem by using PTL's version of tail
                 # but it currently only works on a local host, for remote hosts
@@ -4028,7 +3918,7 @@ class PBSService(PBSObject):
                         cmd += ['-n']
                     cmd += [str(n), filename]
                     lines = self.du.run_cmd(self.hostname, cmd, sudo=sudo,
-                                            level=logging.DEBUG2)['out']
+                                            level=LOG_DEBUG2)['out']
         except:
             self.logger.error('error in log_lines ')
             traceback.print_exc()
@@ -4385,7 +4275,6 @@ class Server(PBSService):
         self._conn_timer = None
         self._conn = None
         self._db_conn = None
-        self.current_user = pwd.getpwuid(os.getuid())[0]
 
         if len(defaults.keys()) == 0:
             defaults = self.dflt_attributes
@@ -4395,6 +4284,7 @@ class Server(PBSService):
 
         PBSService.__init__(self, name, attrs, defaults, pbsconf_file, diagmap,
                             diag)
+        self.current_user = self.du.get_current_user()
         _m = ['server ', self.shortname]
         if pbsconf_file is not None:
             _m += ['@', pbsconf_file]
@@ -4409,7 +4299,7 @@ class Server(PBSService):
             self.client_pbs_conf_file = client_pbsconf_file
 
         self.client_conf = self.du.parse_pbs_config(
-            self.client, file=self.client_pbs_conf_file)
+            self.client, path=self.client_pbs_conf_file)
 
         if self.client_pbs_conf_file == '/etc/pbs.conf':
             self.default_client_pbs_conf = True
@@ -4420,7 +4310,7 @@ class Server(PBSService):
             self.default_client_pbs_conf = True
 
         a = {}
-        if os.getuid() == 0:
+        if self.du.is_privilege_user():
             a = {ATTR_aclroot: 'root'}
         self.dflt_attributes.update(a)
 
@@ -5186,7 +5076,7 @@ class Server(PBSService):
                 as_script = False
 
             ret = self.du.run_cmd(tgt, pcmd, runas=runas, as_script=as_script,
-                                  level=logging.INFOCLI, logerr=logerr)
+                                  level=LOG_INFOCLI, logerr=logerr)
             o = ret['out']
             if ret['err'] != ['']:
                 self.last_error = ret['err']
@@ -5273,7 +5163,7 @@ class Server(PBSService):
                 # up to PBSPro 12.3 pbs_statrsc was not in pbs_ifl.h
                 bs = pbs_statrsc(c, id, a, extend)
             elif obj_type in (HOOK, PBS_HOOK):
-                if os.getuid() != 0:
+                if not self.du.is_privilege_user():
                     try:
                         rc = self.manager(MGR_CMD_LIST, obj_type, attrib,
                                           id, level=level)
@@ -5319,7 +5209,8 @@ class Server(PBSService):
 
         # Hook stat is done through CLI, no need to free the batch_status
         if (not isinstance(bs, list) and freebs and
-                obj_type not in (HOOK, PBS_HOOK) and os.getuid() != 0):
+                obj_type not in (HOOK, PBS_HOOK) and
+                (not self.du.is_privilege_user())):
             pbs_statfree(bs)
 
         # 9- Resolve indirect resources
@@ -5495,7 +5386,7 @@ class Server(PBSService):
                 as_script = True
 
             ret = self.du.run_cmd(self.client, runcmd, runas=runas,
-                                  level=logging.INFOCLI, as_script=as_script,
+                                  level=LOG_INFOCLI, as_script=as_script,
                                   logerr=False)
             if ret['rc'] != 0:
                 objid = None
@@ -5576,7 +5467,7 @@ class Server(PBSService):
             self.logit(prefix + '%s: ' % obj.username, JOB, obj.custom_attrs,
                        objid)
             if obj.script_body:
-                self.logger.log(logging.INFOCLI, 'job script ' + script +
+                self.logger.log(LOG_INFOCLI, 'job script ' + script +
                                 '\n---\n' + obj.script_body + '\n---')
             if objid is not None:
                 self.jobs[objid] = obj
@@ -5660,7 +5551,7 @@ class Server(PBSService):
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
                                   as_script=as_script, logerr=logerr,
-                                  level=logging.INFOCLI)
+                                  level=LOG_INFOCLI)
             rc = ret['rc']
             if ret['err'] != ['']:
                 self.last_error = ret['err']
@@ -5733,7 +5624,7 @@ class Server(PBSService):
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
                                   as_script=as_script, logerr=logerr,
-                                  level=logging.INFOCLI)
+                                  level=LOG_INFOCLI)
             rc = ret['rc']
             if ret['err'] != ['']:
                 self.last_error = ret['err']
@@ -5873,7 +5764,7 @@ class Server(PBSService):
                 as_script = False
 
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             if ret['err'] != ['']:
                 self.last_error = ret['err']
@@ -6054,7 +5945,7 @@ class Server(PBSService):
                 pcmd = ['PBS_CONF_FILE=' + self.client_pbs_conf_file] + pcmd
 
             ret = self.du.run_cmd(self.hostname, pcmd, sudo=sudo, runas=runas,
-                                  level=logging.INFOCLI, as_script=as_script,
+                                  level=LOG_INFOCLI, as_script=as_script,
                                   logerr=logerr)
             rc = ret['rc']
             # NOTE: workaround the fact that qmgr overloads the return code in
@@ -6192,7 +6083,7 @@ class Server(PBSService):
             else:
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             rc = ret['rc']
             if ret['err'] != ['']:
@@ -6280,7 +6171,7 @@ class Server(PBSService):
                 as_script = False
 
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             rc = ret['rc']
             if ret['err'] != ['']:
@@ -6352,7 +6243,7 @@ class Server(PBSService):
             else:
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             rc = ret['rc']
             if ret['err'] != ['']:
@@ -6422,7 +6313,7 @@ class Server(PBSService):
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
                                   logerr=logerr, as_script=as_script,
-                                  level=logging.INFOCLI)
+                                  level=LOG_INFOCLI)
             rc = ret['rc']
             if ret['err'] != ['']:
                 self.last_error = ret['err']
@@ -6489,7 +6380,7 @@ class Server(PBSService):
             else:
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             rc = ret['rc']
             if ret['err'] != ['']:
@@ -6553,7 +6444,7 @@ class Server(PBSService):
             else:
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             rc = ret['rc']
             if ret['err'] != ['']:
@@ -6617,7 +6508,7 @@ class Server(PBSService):
             else:
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             rc = ret['rc']
             if ret['err'] != ['']:
@@ -6692,7 +6583,7 @@ class Server(PBSService):
             else:
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             rc = ret['rc']
             if ret['err'] != ['']:
@@ -6767,7 +6658,7 @@ class Server(PBSService):
 
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
                                   logerr=logerr, as_script=as_script,
-                                  level=logging.INFOCLI)
+                                  level=LOG_INFOCLI)
             rc = ret['rc']
             if ret['err'] != ['']:
                 self.last_error = ret['err']
@@ -6863,7 +6754,7 @@ class Server(PBSService):
                 as_script = False
 
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  level=logging.INFOCLI, as_script=as_script)
+                                  level=LOG_INFOCLI, as_script=as_script)
             rc = ret['rc']
             if ret['err'] != ['']:
                 self.last_error = ret['err']
@@ -6932,7 +6823,7 @@ class Server(PBSService):
             else:
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             if ret['err'] != ['']:
                 self.last_error = ret['err']
@@ -6976,7 +6867,7 @@ class Server(PBSService):
             else:
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             if ret['err'] != ['']:
                 self.last_error = ret['err']
@@ -7020,7 +6911,7 @@ class Server(PBSService):
             else:
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             if ret['err'] != ['']:
                 self.last_error = ret['err']
@@ -7064,7 +6955,7 @@ class Server(PBSService):
             else:
                 as_script = False
             ret = self.du.run_cmd(self.client, pcmd, runas=runas,
-                                  as_script=as_script, level=logging.INFOCLI,
+                                  as_script=as_script, level=LOG_INFOCLI,
                                   logerr=logerr)
             if ret['err'] != ['']:
                 self.last_error = ret['err']
@@ -7270,7 +7161,7 @@ class Server(PBSService):
             tmpfile.close()
             os.close(fd)
 
-            os.chmod(fn, 0755)
+            self.du.chmod(path=fn, mode=0755)
 
             if self._is_local:
                 os.chdir(tempfile.gettempdir())
@@ -9746,7 +9637,7 @@ class Scheduler(PBSService):
         try:
             conf_opts = self.du.cat(self.hostname, schd_cnfg,
                                     sudo=(not self.has_diag),
-                                    level=logging.DEBUG2)['out']
+                                    level=LOG_DEBUG2)['out']
         except:
             self.logger.error('error parsing scheduler configuration')
             return False
@@ -12063,7 +11954,7 @@ class Job(ResourceResv):
             self.username = str(username)
         else:
             self.username = None
-        self.du = None
+        self.du = DshUtils()
         self.interactive_handle = None
 
         PBSObject.__init__(self, None, attrs, self.dflt_attributes)
@@ -12077,12 +11968,12 @@ class Job(ResourceResv):
     def set_variable_list(self, user=None, workdir=None):
         " Customize the Variable_List job attribute to <user> "
         if user is None:
-            userinfo = pwd.getpwuid(os.getuid())
+            userinfo = self.du.getpwuid(self.du.getuid())
             user = userinfo[0]
             homedir = userinfo[5]
         else:
             try:
-                homedir = pwd.getpwnam(user)[5]
+                homedir = self.du.getpwnam(user)[5]
             except:
                 homedir = ""
 
@@ -12160,8 +12051,6 @@ class Job(ResourceResv):
             body = '\n'.join(body)
 
         self.script_body = body
-        if self.du is None:
-            self.du = DshUtils()
         # First create the temporary file as current user and only change
         # its mode once the current user has written to it
         (fd, fn) = self.du.mkstemp(hostname, prefix='PtlPbsJobScript', uid=uid,
@@ -12184,9 +12073,9 @@ class Reservation(ResourceResv):
         self.server = {}
         self.script = None
         self.attributes = attrs
+        self.du = DshUtils()
         if username is None:
-            userinfo = pwd.getpwuid(os.getuid())
-            self.username = userinfo[0]
+            self.username = self.du.get_current_user()
         else:
             self.username = str(username)
 

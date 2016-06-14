@@ -76,3 +76,6 @@ setup(
         'Topic :: Software Development :: Quality Assurance',
     ]
 )
+
+# run setexecutionpolicy remotesigned
+# run winrm quickconfig -q

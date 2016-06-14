@@ -37,22 +37,8 @@
 # trademark licensing policies.
 
 import unittest
-import logging
-import subprocess
-import pwd
-import grp
-import os
-import sys
-import platform
-import socket
-import time
-import calendar
-import ptl
-from ptl.utils.pbs_logutils import PBSLogAnalyzer
-from ptl.utils.pbs_dshutils import DshUtils
-from ptl.utils.pbs_cliutils import CliUtils
-from ptl.utils.pbs_procutils import ProcMonitor
 from ptl.lib.pbs_testlib import *
+from ptl.utils.pbs_logutils import *
 try:
     from ptl.utils.plugins.ptl_test_tags import tags
 except ImportError:
@@ -69,62 +55,109 @@ except ImportError:
 # User running the tests and the test users should have passwordless sudo
 # access configured to avoid interrupted (queries for password) test runs
 
-# Groups
-TSTGRP0 = PbsGroup('tstgrp00', gid=1900)
-TSTGRP1 = PbsGroup('tstgrp01', gid=1901)
-TSTGRP2 = PbsGroup('tstgrp02', gid=1902)
-TSTGRP3 = PbsGroup('tstgrp03', gid=1903)
-TSTGRP4 = PbsGroup('tstgrp04', gid=1904)
-TSTGRP5 = PbsGroup('tstgrp05', gid=1905)
-TSTGRP6 = PbsGroup('tstgrp06', gid=1906)
-TSTGRP7 = PbsGroup('tstgrp07', gid=1907)
-GRP_PBS = PbsGroup('pbs', gid=901)
-GRP_AGT = PbsGroup('agt', gid=1146)
-ROOT_GRP = PbsGroup(grp.getgrgid(0).gr_name, gid=0)
+__du = DshUtils()
+
+
+def __get_check_user(username, uid):
+    try:
+        return __du.getpwnam(username)
+    except:
+        user = PbsUser(name=username, uid=uid, gid=-1, gecos=username,
+                       homedir=None, shell=None, sid=None)
+        user.set_fake()
+        return user
+
+
+def __get_check_group(groupname, gid):
+    try:
+        return __du.getgrnam(groupname)
+    except:
+        group = PbsGroup(name=groupname, gid=gid, sid=None)
+        group.set_fake()
+        return group
+
+
+def __assign_groups_to_user(user, groups):
+    for v in groups:
+        if v in user.pw_groups:
+            user.pw_groups.remove(v)
+        if user in v.gr_mem:
+            v.gr_mem.remove(user)
+    for idx, v in enumerate(groups):
+        user.pw_groups.insert(idx, v)
+        v.gr_mem.insert(idx, user)
 
 # Users
+TEST_USER = __get_check_user('pbsuser', uid=4359)
+TEST_USER1 = __get_check_user('pbsuser1', uid=4361)
+TEST_USER2 = __get_check_user('pbsuser2', uid=4362)
+TEST_USER3 = __get_check_user('pbsuser3', uid=4363)
+TEST_USER4 = __get_check_user('pbsuser4', uid=4364)
+TEST_USER5 = __get_check_user('pbsuser5', uid=4365)
+TEST_USER6 = __get_check_user('pbsuser6', uid=4366)
+TEST_USER7 = __get_check_user('pbsuser7', uid=4368)
+OTHER_USER = __get_check_user('pbsother', uid=4358)
+PBSTEST_USER = __get_check_user('pbstest', uid=4355)
+TST_USR = __get_check_user('tstusr00', uid=11000)
+TST_USR1 = __get_check_user('tstusr01', uid=11001)
+BUILD_USER = __get_check_user('pbsbuild', uid=9000)
+DATA_USER = __get_check_user('pbsdata', uid=4372)
+MGR_USER = __get_check_user('pbsmgr', uid=4367)
+OPER_USER = __get_check_user('pbsoper', uid=4356)
+ADMIN_USER = __get_check_user('pbsadmin', uid=4357)
+PBSROOT_USER = __get_check_user('pbsroot', uid=4371)
+ROOT_USER = __get_check_user('root', uid=0)
+
+# Groups
+TSTGRP0 = __get_check_group('tstgrp00', gid=1900)
+TSTGRP1 = __get_check_group('tstgrp01', gid=1901)
+TSTGRP2 = __get_check_group('tstgrp02', gid=1902)
+TSTGRP3 = __get_check_group('tstgrp03', gid=1903)
+TSTGRP4 = __get_check_group('tstgrp04', gid=1904)
+TSTGRP5 = __get_check_group('tstgrp05', gid=1905)
+TSTGRP6 = __get_check_group('tstgrp06', gid=1906)
+TSTGRP7 = __get_check_group('tstgrp07', gid=1907)
+GRP_PBS = __get_check_group('pbs', gid=901)
+GRP_AGT = __get_check_group('agt', gid=1146)
+ROOT_GRP = __get_check_group('root', gid=0)
+
+# Assign groups to users
 # first group from group list is primary group of user
-TEST_USER = PbsUser('pbsuser', uid=4359, groups=[TSTGRP0])
-TEST_USER1 = PbsUser('pbsuser1', uid=4361, groups=[TSTGRP0, TSTGRP1, TSTGRP2])
-TEST_USER2 = PbsUser('pbsuser2', uid=4362, groups=[TSTGRP0, TSTGRP1, TSTGRP3])
-TEST_USER3 = PbsUser('pbsuser3', uid=4363, groups=[TSTGRP0, TSTGRP1, TSTGRP4])
-TEST_USER4 = PbsUser('pbsuser4', uid=4364, groups=[TSTGRP1, TSTGRP4, TSTGRP5])
-TEST_USER5 = PbsUser('pbsuser5', uid=4365, groups=[TSTGRP2, TSTGRP4, TSTGRP6])
-TEST_USER6 = PbsUser('pbsuser6', uid=4366, groups=[TSTGRP3, TSTGRP4, TSTGRP7])
-TEST_USER7 = PbsUser('pbsuser7', uid=4368, groups=[TSTGRP1])
+__assign_groups_to_user(TEST_USER, [TSTGRP0])
+__assign_groups_to_user(TEST_USER1, [TSTGRP0, TSTGRP1, TSTGRP2])
+__assign_groups_to_user(TEST_USER2, [TSTGRP0, TSTGRP1, TSTGRP3])
+__assign_groups_to_user(TEST_USER3, [TSTGRP0, TSTGRP1, TSTGRP4])
+__assign_groups_to_user(TEST_USER4, [TSTGRP1, TSTGRP4, TSTGRP5])
+__assign_groups_to_user(TEST_USER5, [TSTGRP2, TSTGRP4, TSTGRP6])
+__assign_groups_to_user(TEST_USER6, [TSTGRP3, TSTGRP4, TSTGRP7])
+__assign_groups_to_user(TEST_USER7, [TSTGRP1])
+__assign_groups_to_user(OTHER_USER, [TSTGRP0, TSTGRP2, GRP_PBS, GRP_AGT])
+__assign_groups_to_user(PBSTEST_USER, [TSTGRP0, TSTGRP2, GRP_PBS, GRP_AGT])
+__assign_groups_to_user(TST_USR, [TSTGRP0])
+__assign_groups_to_user(TST_USR1, [TSTGRP0])
+__assign_groups_to_user(BUILD_USER, [TSTGRP0])
+__assign_groups_to_user(DATA_USER, [TSTGRP0])
+__assign_groups_to_user(MGR_USER, [TSTGRP0])
+__assign_groups_to_user(OPER_USER, [TSTGRP0, TSTGRP2, GRP_PBS, GRP_AGT])
+__assign_groups_to_user(ADMIN_USER, [TSTGRP0, TSTGRP2, GRP_PBS, GRP_AGT])
+__assign_groups_to_user(PBSROOT_USER, [TSTGRP0, TSTGRP2])
+__assign_groups_to_user(ROOT_USER, [ROOT_GRP])
 
-OTHER_USER = PbsUser('pbsother', uid=4358, groups=[TSTGRP0, TSTGRP2, GRP_PBS,
-                                                   GRP_AGT])
-PBSTEST_USER = PbsUser('pbstest', uid=4355, groups=[TSTGRP0, TSTGRP2, GRP_PBS,
-                                                    GRP_AGT])
-TST_USR = PbsUser('tstusr00', uid=11000, groups=[TSTGRP0])
-TST_USR1 = PbsUser('tstusr01', uid=11001, groups=[TSTGRP0])
-
-BUILD_USER = PbsUser('pbsbuild', uid=9000, groups=[TSTGRP0])
-DATA_USER = PbsUser('pbsdata', uid=4372, groups=[TSTGRP0])
-MGR_USER = PbsUser('pbsmgr', uid=4367, groups=[TSTGRP0])
-OPER_USER = PbsUser('pbsoper', uid=4356, groups=[TSTGRP0, TSTGRP2, GRP_PBS,
-                                                 GRP_AGT])
-ADMIN_USER = PbsUser('pbsadmin', uid=4357, groups=[TSTGRP0, TSTGRP2, GRP_PBS,
-                                                   GRP_AGT])
-PBSROOT_USER = PbsUser('pbsroot', uid=4371, groups=[TSTGRP0, TSTGRP2])
-ROOT_USER = PbsUser('root', uid=0, groups=[ROOT_GRP])
+# remove temp methods
+del __du
+del __get_check_user
+del __get_check_group
+del __assign_groups_to_user
 
 PBS_USERS = (TEST_USER, TEST_USER1, TEST_USER2, TEST_USER3, TEST_USER4,
              TEST_USER5, TEST_USER6, TEST_USER7, OTHER_USER, PBSTEST_USER,
              TST_USR, TST_USR1)
-
 PBS_GROUPS = (TSTGRP0, TSTGRP1, TSTGRP2, TSTGRP3, TSTGRP4, TSTGRP5, TSTGRP6,
               TSTGRP7, GRP_PBS, GRP_AGT)
-
 PBS_OPER_USERS = (OPER_USER,)
-
 PBS_MGR_USERS = (MGR_USER, ADMIN_USER)
-
 PBS_DATA_USERS = (DATA_USER,)
-
 PBS_ROOT_USERS = (PBSROOT_USER, ROOT_USER)
-
 PBS_BUILD_USERS = (BUILD_USER,)
 
 SETUPLOG = 'setuplog'
@@ -464,17 +497,25 @@ class PBSTestSuite(unittest.TestCase):
     def _set_user(cls, name, user_list):
         if name in cls.conf:
             for idx, u in enumerate(cls.conf[name].split(':')):
-                user_list[idx].__init__(u)
+                try:
+                    user = cls.du.getpwnam(u)
+                except:
+                    _msg = 'User ' + str(u) + ' does not exist!'
+                    raise setUpClassError(_msg)
+                user_list = list(user_list)
+                user_list[idx] = user
+                user_list = tuple(user_list)
 
     @classmethod
     def check_users_exist(cls):
-        testusersexist = True
-        for u in [TEST_USER, TEST_USER1, TEST_USER2, TEST_USER3]:
-            rv = cls.du.check_user_exists(str(u))
-            if not rv:
-                _msg = 'User ' + str(u) + ' does not exist!'
+        for group in PBS_GROUPS:
+            if group.is_fake():
+                _msg = 'Group ' + str(group) + ' does not exist!'
                 raise setUpClassError(_msg)
-        return testusersexist
+            for user in group.gr_mem:
+                if user.is_fake():
+                    _msg = 'User ' + str(user) + ' does not exist!'
+                    raise setUpClassError(_msg)
 
     @classmethod
     def kicksched_action(cls, server, obj_type, *args, **kwargs):
@@ -513,6 +554,7 @@ class PBSTestSuite(unittest.TestCase):
         if (('clienthost' in cls.conf) and
                 not isinstance(cls.conf['clienthost'], list)):
             cls.conf['clienthost'] = cls.conf['clienthost'].split(':')
+        # TODO: enhance this for groups also
         users_map = [('test-users', PBS_USERS),
                      ('oper-users', PBS_OPER_USERS),
                      ('mgr-users', PBS_MGR_USERS),
@@ -784,7 +826,7 @@ class PBSTestSuite(unittest.TestCase):
             msg = 'Failed to restart server ' + server.hostname
             self.assertTrue(server.isUp(), msg)
         server_stat = server.status(SERVER)[0]
-        current_user = pwd.getpwuid(os.getuid())[0]
+        current_user = self.du.get_current_user()
         try:
             # remove current user's entry from managers list (if any)
             a = {ATTR_managers: (DECR, current_user + '@*')}

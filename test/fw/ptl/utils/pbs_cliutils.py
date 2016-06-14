@@ -79,17 +79,6 @@ class CliUtils(object):
         return False
 
     @staticmethod
-    def __json__(data):
-        try:
-            import json
-            return json.dumps(data, sort_keys=True, indent=4)
-        except:
-            # first escape any existing double quotes
-            _pre = str(data).replace('"', '\\"')
-            # only then, replace the single quotes with double quotes
-            return _pre.replace('\'', '"')
-
-    @staticmethod
     def expand_abs_path(path):
         if path.startswith('~'):
             return os.path.expanduser(path)
@@ -153,3 +142,16 @@ class CliUtils(object):
             msg.append('No privileged ports currently allocated')
 
         return msg
+
+    @staticmethod
+    def parse_strace(lines):
+        """
+        strace parsing. Just the regular expressions for now (thanks to Carl)
+        """
+        timestamp_pat = r'(^(\d{2}:\d{2}:\d{2})(.\d+){0,1} |^(\d+.\d+) ){0,1}'
+        exec_pat = r'execve\(("[^"]+"), \[([^]]+)\], [^,]+ = (\d+)$'
+        timestamp_exec_re = re.compile(timestamp_pat + exec_pat)
+        for line in lines:
+            m = timestamp_exec_re.match(line)
+            if m:
+                print line

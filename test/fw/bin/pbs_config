@@ -191,7 +191,7 @@ def common_users_groups_ops():
     gm_expected = {}
     gm_actual = du.group_memberships(map(lambda g: str(g), PBS_GROUPS))
     for g in PBS_GROUPS:
-        gm_expected[g] = g.users
+        gm_expected[g] = g.gr_mem
     for k, v in gm_expected.items():
         if str(k) not in gm_actual:
             g_create.append(k)
@@ -225,9 +225,10 @@ def make_users_groups():
     du = DshUtils()
     _, _, g_create, u_create = common_users_groups_ops()
     for g in g_create:
-        du.groupadd(g, g.gid, logerr=False)
+        du.groupadd(g.gr_name, g.gr_gid, logerr=False)
     for u in u_create:
-        du.useradd(name=u, uid=u.uid, gid=u.groups[0], groups=u.groups,
+        du.useradd(name=u.pw_name, uid=u.pw_uid, gid=u.pw_groups[0],
+                   groups=u.pw_groups,
                    logerr=False)
     return True
 
@@ -483,10 +484,10 @@ if __name__ == '__main__':
 
     elif multimom:
         if num_moms is not None:
-            if os.getuid() != 0:
+            du = DshUtils()
+            if not du.is_privilege_user():
                 logging.error('Must be run as root')
                 sys.exit(1)
-            du = DshUtils()
             conf = du.parse_pbs_config(serverhost)
             serverhost = DshUtils().get_pbs_server_name(conf)
             s = Server(serverhost)
@@ -511,7 +512,7 @@ if __name__ == '__main__':
                     logging.error(ret['err'])
                 del pi
     elif asdiag is not None:
-        if os.getuid() != 0:
+        if not DshUtils().is_privilege_user():
             logging.error('Must be run as root')
             sys.exit(1)
         Server(diag=asdiag).clusterize(conf_file, hosts,

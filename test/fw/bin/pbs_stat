@@ -45,7 +45,7 @@ import os
 import time
 import re
 import errno
-
+import json
 import ptl
 from ptl.utils.pbs_cliutils import CliUtils
 from ptl.utils.pbs_logutils import PBSAccountingLog
@@ -538,7 +538,7 @@ if __name__ == '__main__':
             else:
                 if 'PBS_CONF_FILE' in os.environ:
                     _c = DshUtils().parse_pbs_config(
-                        file=os.environ['PBS_CONF_FILE'])
+                        path=os.environ['PBS_CONF_FILE'])
                 elif os.path.isfile('/etc/pbs.conf'):
                     _c = DshUtils().parse_pbs_config()
                 if 'PBS_SERVER' in _c:
@@ -675,7 +675,7 @@ if __name__ == '__main__':
 
         fs_as_bs = scheduler.fairshare_tree.__batch_status__()
         if json_on:
-            print CliUtils.__json__(fs_as_bs)
+            print json.dumps(fs_as_bs, sort_keys=True, indent=4)
         else:
             scheduler.utils.show(fs_as_bs, fsentity)
         sys.exit(0)
@@ -758,13 +758,14 @@ if __name__ == '__main__':
                                    db_access=db_access,
                                    over=over_soft_limits)
         if json_on:
-            CliUtils.__json__(server.utils.decode_dictlist(linfo))
+            _data = server.utils.decode_dictlist(linfo)
+            json.dumps(_data, sort_keys=True, indent=4)
         else:
             server.utils.show(linfo)
         sys.exit(0)
 
     if nodeclasses:
-        if scheduler is None and os.getuid() == 0:
+        if scheduler is None and DshUtils().is_privilege_user():
             scheduler = Scheduler(server=server, diag=server.diag,
                                   diagmap=server.diagmap, db_access=db_access)
 
@@ -861,7 +862,8 @@ if __name__ == '__main__':
                                      db_access=db_access,
                                      resolve_indirectness=indirectness)
             if json_on:
-                print CliUtils.__json__(server.utils.decode_dictlist(statinfo))
+                _data = server.utils.decode_dictlist(statinfo)
+                json.dumps(_data, sort_keys=True, indent=4)
             else:
                 server.utils.show(statinfo, fmt=fmt)
             sys.exit(0)
@@ -884,7 +886,8 @@ if __name__ == '__main__':
                 visited.append(obj['id'])
 
         if json_on:
-            CliUtils.__json__(server.utils.decode_dictlist(toshow))
+            _data = server.utils.decode_dictlist(toshow)
+            json.dumps(_data, sort_keys=True, indent=4)
         else:
             server.utils.show(toshow, fmt=fmt)
 

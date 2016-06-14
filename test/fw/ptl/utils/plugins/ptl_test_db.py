@@ -39,13 +39,13 @@
 import os
 import ptl
 import sys
-import pwd
 import logging
 import platform
 import traceback
 import time
 import ptl.utils.pbs_logutils as lu
 from ptl.lib.pbs_testlib import PbsTypeDuration
+from ptl.utils.pbs_dshutils import DshUtils
 
 # Following dance require because PTLTestDb().process_output() from this file
 # is used in pbs_loganalyzer script which is shipped with PBS package
@@ -168,7 +168,7 @@ class PostgreSQLDb(DBType):
         except Exception, e:
             _msg = 'Failed to connect to database:\n%s\n' % (str(e))
             raise PTLDbError(rc=1, rv=False, msg=_msg)
-        self.__username = pwd.getpwuid(os.getuid())[0]
+        self.__username = DshUtils().get_current_user()
         self.__platform = ' '.join(platform.uname()).strip()
         self.__ptlversion = str(ptl.__version__)
         self.__db_version = '1.0.0'
@@ -567,7 +567,7 @@ class SQLiteDb(DBType):
         except Exception, e:
             _msg = 'Failed to connect to database:\n%s\n' % (str(e))
             raise PTLDbError(rc=1, rv=False, msg=_msg)
-        self.__username = pwd.getpwuid(os.getuid())[0]
+        self.__username = DshUtils().get_current_user()
         self.__platform = ' '.join(platform.uname()).strip()
         self.__ptlversion = str(ptl.__version__)
         self.__db_version = '1.0.0'
@@ -954,7 +954,7 @@ class FileDb(DBType):
             raise PTLDbError(rc=1, rv=False, msg=_msg)
         self.__separator1 = '=' * 80
         self.__separator2 = '___m_oo_m___'
-        self.__username = pwd.getpwuid(os.getuid())[0]
+        self.__username = DshUtils().get_current_user()
         self.__platform = ' '.join(platform.uname()).strip()
         self.__ptlversion = str(ptl.__version__)
         self.__dbobj = {}
@@ -1095,7 +1095,7 @@ class HTMLDb(DBType):
             self.dbpath = self.dbpath.rstrip('.db') + '.html'
         self.__cmd = [os.path.basename(sys.argv[0])]
         self.__cmd += sys.argv[1:]
-        self.__username = pwd.getpwuid(os.getuid())[0]
+        self.__username = DshUtils().get_current_user()
         self.__platform = ' '.join(platform.uname()).strip()
         self.__ptlversion = str(ptl.__version__)
         self.__dbobj = {}

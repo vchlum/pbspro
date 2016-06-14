@@ -35,45 +35,20 @@
 # Use of Altair’s trademarks, including but not limited to "PBS™",
 # "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
 # trademark licensing policies.
-
+import platform
+from _json import make_encoder
 from subprocess import PIPE, Popen
 import os
 import sys
 import re
-import stat
 import socket
 import logging
-import traceback
 import copy
 import tempfile
-import pwd
-import grp
 
-DFLT_RSYNC_CMD = ['rsync', '-e', 'ssh', '--progress', '--partial', '-ravz']
-DFLT_COPY_CMD = ['scp', '-p']
-DFLT_RSH_CMD = ['ssh']
-DFLT_SUDO_CMD = ['sudo', '-H']
-
-logging.DEBUG2 = logging.DEBUG - 1
-logging.INFOCLI = logging.INFO - 1
-logging.INFOCLI2 = logging.INFOCLI - 1
-
-
-class PbsConfigError(Exception):
-
-    def __init__(self, message=None, rv=None, rc=None, msg=None):
-        self.message = message
-        self.rv = rv
-        self.rc = rc
-        self.msg = msg
-
-    def __str__(self):
-        return ('rc=' + str(self.rc) + ', rv=' + str(self.rv) +
-                ',msg=' + str(self.msg))
-
-    def __repr__(self):
-        return (self.__class__.__name__ + '(rc=' + str(self.rc) + ', rv=' +
-                str(self.rv) + ', msg=' + str(self.msg) + ')')
+LOG_DEBUG2 = logging.DEBUG - 1
+LOG_INFOCLI = logging.INFO - 1
+LOG_INFOCLI2 = logging.INFO - 2
 
 
 class PtlUtilError(Exception):
@@ -93,6 +68,122 @@ class PtlUtilError(Exception):
                 str(self.rv) + ', msg=' + str(self.msg) + ')')
 
 
+class Singleton(type):
+
+    _clses = {}
+
+    def __call__(cls, *args, **kwargs):
+        key = (cls, args, str(kwargs))
+        if key not in cls._clses:
+            cls._clses[key] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._clses[key]
+
+
+class PbsUser(object):
+
+    __metaclass__ = Singleton
+
+    def __init__(self, name, uid, gid, gecos, homedir, shell, sid=None):
+        self.__dict__['pw_name'] = str(name)
+        self.__dict__['pw_passwd'] = 'x'
+        self.__dict__['pw_uid'] = int(uid)
+        self.__dict__['pw_gid'] = int(gid)
+        self.__dict__['pw_gecos'] = str(gecos)
+        self.__dict__['pw_dir'] = str(homedir)
+        self.__dict__['pw_shell'] = str(shell)
+        self.__dict__['pw_sid'] = str(sid)
+        self.__dict__['pw_groups'] = []
+        self.__dict__['_fake'] = False
+        self.__dict__['_record'] = (self.pw_name, self.pw_passwd,
+                                    self.pw_uid, self.pw_gid,
+                                    self.pw_gecos, self.pw_dir,
+                                    self.pw_shell, self.pw_sid,
+                                    map(lambda g: str(g), self.pw_groups))
+
+    def __len__(self):
+        return len(self.__dict__['_record'])
+
+    def __getitem__(self, key):
+        return self._record[key]
+
+    def __setattr__(self, name, value):
+        raise AttributeError('attribute read-only: %s' % name)
+
+    def __repr__(self):
+        return 'PbsUser' + str(self._record)
+
+    def __str__(self):
+        return self.__dict__['pw_name']
+
+    def __int__(self):
+        return self.__dict__['pw_uid']
+
+    def __cmp__(self, other):
+        this = str(self._record)
+        if this == other:
+            return 0
+        elif this < other:
+            return -1
+        else:
+            return 1
+
+    def set_fake(self):
+        self.__dict__['_fake'] = True
+
+    def is_fake(self):
+        return self.__dict__['_fake']
+
+
+class PbsGroup(object):
+
+    __metaclass__ = Singleton
+
+    def __init__(self, name, gid, sid=None):
+        self.__dict__['gr_name'] = str(name)
+        self.__dict__['gr_passwd'] = 'x'
+        self.__dict__['gr_gid'] = int(gid)
+        self.__dict__['gr_mem'] = []
+        self.__dict__['gr_sid'] = str(sid)
+        self.__dict__['_fake'] = False
+        self.__dict__['_record'] = (self.gr_name, self.gr_passwd,
+                                    self.gr_gid,
+                                    map(lambda u: str(u), self.gr_mem),
+                                    self.gr_sid)
+
+    def __len__(self):
+        return len(self.__dict__['_record'])
+
+    def __getitem__(self, key):
+        return self._record[key]
+
+    def __setattr__(self, name, value):
+        raise AttributeError('attribute read-only: %s' % name)
+
+    def __repr__(self):
+        return 'PbsGroup' + str(self._record)
+
+    def __str__(self):
+        return self.__dict__['gr_name']
+
+    def __int__(self):
+        return self.__dict__['gr_gid']
+
+    def __cmp__(self, other):
+        this = str(self._record)
+        if this == other:
+            return 0
+        elif this < other:
+            return -1
+        else:
+            return 1
+
+    def set_fake(self):
+        self.__dict__['_fake'] = True
+
+    def is_fake(self):
+        return self.__dict__['_fake']
+
+
 class DshUtils(object):
 
     """
@@ -107,26 +198,18 @@ class DshUtils(object):
     _h2c = {}  # host to pbs_conf file cache
     _h2l = {}  # host to islocal cache
     _h2which = {}  # host to which cache
-    rsh_cmd = DFLT_RSH_CMD
-    sudo_cmd = DFLT_SUDO_CMD
-    copy_cmd = DFLT_COPY_CMD
 
     def __init__(self):
-
         self._current_user = None
-
-        logging.addLevelName('INFOCLI', logging.INFOCLI)
+        logging.addLevelName('INFOCLI', LOG_INFOCLI)
         setattr(self.logger, 'infocli',
-                lambda *args: self.logger.log(logging.INFOCLI, *args))
-
-        logging.addLevelName('DEBUG2', logging.DEBUG2)
+                lambda *args: self.logger.log(LOG_INFOCLI, *args))
+        logging.addLevelName('DEBUG2', LOG_DEBUG2)
         setattr(self.logger, 'debug2',
-                lambda *args: self.logger.log(logging.DEBUG2, *args))
-
-        logging.addLevelName('INFOCLI2', logging.INFOCLI2)
+                lambda *args: self.logger.log(LOG_DEBUG2, *args))
+        logging.addLevelName('INFOCLI2', LOG_INFOCLI2)
         setattr(self.logger, 'infocli2',
-                lambda *args: self.logger.log(logging.INFOCLI2, *args))
-
+                lambda *args: self.logger.log(LOG_INFOCLI2, *args))
         self.mom_conf_map = {'PBS_MOM_SERVICE_PORT': '-M',
                              'PBS_MANAGER_SERVICE_PORT': '-R',
                              'PBS_HOME': '-d',
@@ -143,7 +226,10 @@ class DshUtils(object):
                                'PBS_SCHEDULER_SERVICE_PORT': '-S',
                                }
         self._tempdir = {}
-        self.platform = self.get_platform()
+        self.platform = sys.platform
+        self.is_linux = self.platform.startswith('linux')
+        self.is_windows = self.platform.startswith('win32')
+        self.is_64bit = platform.architecture()[0] == '64bit'
 
     def get_platform(self, hostname=None, pyexec=None):
         """
@@ -160,56 +246,48 @@ class DshUtils(object):
         """
         if hostname is None:
             return sys.platform
-
         if hostname in self._h2p:
             return self._h2p[hostname]
-
         if self.is_localhost(hostname):
             self._h2p[hostname] = sys.platform
             return sys.platform
-
         if pyexec is None:
             pyexec = self.which(hostname, 'python')
-
         cmd = [pyexec, '-c', '"import sys; print sys.platform"']
         ret = self.run_cmd(hostname, cmd=cmd)
         if ret['rc'] != 0 or len(ret['out']) == 0:
-            self.logger.warning('Unable to retrieve platform info, defaulting '
-                                'to local platform')
+            _msg = 'Unable to retrieve platform info, '
+            _msg += 'defaulting to local platform'
+            self.logger.warning(_msg)
             platform = sys.platform
         else:
-            platform = ret['out'][0]
-
+            platform = ret['out'][0].strip()
         self._h2p[hostname] = platform
-
         return platform
 
-    def _parse_file(self, hostname, file):
+    def _parse_file(self, hostname, path):
         """
          helper function to parse a file containing entries of the form
          <key>=<value> into a Python dictionary format
         """
         if hostname is None:
             hostname = socket.gethostname()
-
         try:
-            rv = self.cat(hostname, file, level=logging.DEBUG2, logerr=False)
+            rv = self.cat(hostname, path, level=LOG_DEBUG2,
+                          logerr=False)
             if rv['rc'] != 0:
                 return {}
-
             props = {}
             for l in rv['out']:
                 if l.find('=') != -1 and l[0] != '#':
                     c = l.split('=')
                     props[c[0]] = c[1].strip()
         except:
-            self.logger.error('error parsing file ' + str(file))
-            self.logger.error(traceback.print_exc())
-            return {}
-
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='error parsing file ' + str(path))
         return props
 
-    def _set_file(self, hostname, fin, fout, append, vars):
+    def _set_file(self, hostname, fin, fout, append, pairs):
         """
         Create a file out of a set of dictionaries, possibly parsed from an
         input file. @see _parse_file.
@@ -227,28 +305,23 @@ class DshUtils(object):
         """
         if hostname is None:
             hostname = socket.gethostname()
-
         if append:
             conf = self._parse_file(hostname, fin)
         else:
             conf = {}
-        conf = dict(conf.items() + vars.items())
-
+        conf = dict(conf.items() + pairs.items())
         try:
             (fd, fn) = self.mkstemp()
-            os.chmod(
-                fn,
-                stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+            self.chmod(hostname, fn, 0644)
             for k, v in conf.items():
-                os.write(fd, str(k) + '=' + str(v) + '\n')
+                os.write(fd, str(k) + '=' + str(v) + os.linesep)
             os.close(fd)
             self.chown(path=fn, uid=0, gid=0, sudo=True)
             self.run_copy(hostname, fn, fout, sudo=True)
             self.rm(path=fn, sudo=True)
         except:
-            raise PbsConfigError(rc=1, rv=None,
-                                 msg='error writing to file ' + str(fout))
-            raise
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='error writing to file ' + str(fout))
         return conf
 
     def get_pbs_conf_file(self, hostname=None):
@@ -256,34 +329,36 @@ class DshUtils(object):
         Get the path of the pbs conf file. Defaults back to /etc/pbs.conf
         if unsuccessful
         """
-        dflt_conf = '/etc/pbs.conf'
-
+        if self.is_windows:
+            if self.is_64bit:
+                dflt_conf = 'C:\\Program Files (x86)\\'
+            else:
+                dflt_conf = 'C:\\Program Files\\'
+            dflt_conf += 'PBS Pro\\pbs.conf'
+        else:
+            dflt_conf = '/etc/pbs.conf'
         if hostname is None:
             hostname = socket.gethostname()
-
         if hostname in self._h2c:
             return self._h2c[hostname]
-
         if self.is_localhost(hostname):
-            if 'PBS_CONF_FILE' in os.environ:
-                dflt_conf = os.environ['PBS_CONF_FILE']
+            dflt_conf = os.environ.get('PBS_CONF_FILE', dflt_conf)
         else:
             pc = ('"import os;print [False, os.environ[\'PBS_CONF_FILE\']]'
                   '[\'PBS_CONF_FILE\' in os.environ]"')
-            cmd = ['python', '-c', pc]
+            cmd = [self.which(hostname, 'python'), '-c', pc]
             ret = self.run_cmd(hostname, cmd, logerr=False)
             if ((ret['rc'] != 0) and (len(ret['out']) > 0) and
                     (ret['out'][0] != 'False')):
                 dflt_conf = ret['out'][0]
-
         self._h2c[hostname] = dflt_conf
         return dflt_conf
 
-    def parse_pbs_config(self, hostname=None, file=None):
+    def parse_pbs_config(self, hostname=None, path=None):
         " initialize pbs_conf dictionary by parsing pbs config file "
-        if file is None:
-            file = self.get_pbs_conf_file(hostname)
-        return self._parse_file(hostname, file)
+        if path is None:
+            path = self.get_pbs_conf_file(hostname)
+        return self._parse_file(hostname, path)
 
     def set_pbs_config(self, hostname=None, fin=None, fout=None,
                        append=True, confs={}):
@@ -323,26 +398,21 @@ class DshUtils(object):
         """
         if fin is None:
             fin = self.get_pbs_conf_file(hostname)
-
         if fout is None and fin is not None:
             fout = fin
         if isinstance(confs, str):
             confs = confs.split(',')
         elif isinstance(confs, dict):
             confs = confs.keys()
-
-        tounset = []
         cur_confs = self.parse_pbs_config(hostname, fin)
         for k in confs:
             if k in cur_confs:
-                tounset.append(k)
                 del cur_confs[k]
-        if tounset:
-            self.logger.info('Unset ' + ",".join(tounset) + ' from ' + fout)
-
+        self.logger.info('Unset ' + ",".join(confs) + ' from ' + fout)
         return self._set_file(hostname, fin, fout, append=False,
-                              vars=cur_confs)
+                              pairs=cur_confs)
 
+    # TODO: move this to lib
     def get_pbs_server_name(self, pbs_conf=None):
         """
         Return the name of the server which may be different than PBS_SERVER,
@@ -351,69 +421,84 @@ class DshUtils(object):
         """
         if pbs_conf is None:
             pbs_conf = self.parse_pbs_config()
-
         if 'PBS_PRIMARY' in pbs_conf:
             return pbs_conf['PBS_PRIMARY']
         elif 'PBS_SERVER_HOST_NAME' in pbs_conf:
             return pbs_conf['PBS_SERVER_HOST_NAME']
         elif 'PBS_LEAF_NAME' in pbs_conf:
             return pbs_conf['PBS_LEAF_NAME']
-
         return pbs_conf['PBS_SERVER']
 
-    def parse_pbs_environment(self, hostname=None,
-                              file='/var/spool/PBS/pbs_environment'):
+    def parse_pbs_environment(self, hostname=None, path=None):
         """
         Initialize pbs_conf dictionary by parsing pbs config file
         """
-        return self._parse_file(hostname, file)
+        if path is None:
+            if self.is_windows:
+                if self.is_64bit:
+                    path = 'C:\\Program Files (x86)\\'
+                else:
+                    path = 'C:\\Program Files\\'
+                path += 'PBS Pro\\home\\pbs_environment'
+            else:
+                path = '/var/spool/pbs/pbs_environment'
+        return self._parse_file(hostname, path)
 
-    def set_pbs_environment(self, hostname=None,
-                            fin='/var/spool/PBS/pbs_environment', fout=None,
-                            append=True, vars={}):
+    def set_pbs_environment(self, hostname=None, fin=None, fout=None,
+                            append=True, pairs={}):
+        if fin is None:
+            if self.is_windows:
+                if self.is_64bit:
+                    fin = 'C:\\Program Files (x86)\\'
+                else:
+                    fin = 'C:\\Program Files\\'
+                fin += 'PBS Pro\\home\\pbs_environment'
+            else:
+                fin = '/var/spool/pbs/pbs_environment'
         if fout is None and fin is not None:
             fout = fin
-        return self._set_file(hostname, fin, fout, append, vars)
+        return self._set_file(hostname, fin, fout, append, pairs)
 
     def parse_rhosts(self, hostname=None, user=None):
         if hostname is None:
             hostname = socket.gethostname()
         if user is None:
-            user = os.getuid()
+            user = self.getuid()
         try:
-            # currently assumes identical file system layout on every host
+            # Assumes identical file system layout on every host
             if isinstance(user, int):
-                home = pwd.getpwuid(user).pw_dir
+                home = self.getpwuid(user).pw_dir
             else:
-                home = pwd.getpwnam(user).pw_dir
+                home = self.getpwnam(user).pw_dir
             rhost = os.path.join(home, '.rhosts')
-            rv = self.cat(hostname, rhost, level=logging.DEBUG2, runas=user,
+            rv = self.cat(hostname, rhost, level=LOG_DEBUG2, runas=user,
                           logerr=False)
             if rv['rc'] != 0:
                 return {}
             props = {}
             for l in rv['out']:
                 if l[0] != '#':
+                    if l.strip() == '':
+                        continue
                     k, v = l.split()
                     v = v.strip()
-                    if k in self.props:
-                        if isinstance(self.props[k], list):
-                            self.props[k].append(v)
+                    if k in props:
+                        if isinstance(props[k], list):
+                            props[k].append(v)
                         else:
-                            self.props[k] = [self.props[k], v]
+                            props[k] = [props[k], v]
                     else:
-                        self.props[k] = v
+                        props[k] = v
         except:
-            self.logger.error('error parsing .rhost')
-            self.logger.error(traceback.print_exc())
-            return {}
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='error parsing .rhost')
         return props
 
     def set_rhosts(self, hostname=None, user=None, entry={}, append=True):
         if hostname is None:
             hostname = socket.gethostname()
         if user is None:
-            user = os.getuid()
+            user = self.getuid()
         if append:
             conf = self.parse_rhosts(hostname, user)
             for k, v in entry.items():
@@ -435,42 +520,40 @@ class DshUtils(object):
         try:
             # currently assumes identical file system layout on every host
             if isinstance(user, int):
-                _user = pwd.getpwuid(user)
+                _user = self.getpwuid(user)
                 home = _user.pw_dir
                 uid = _user.pw_uid
             else:
                 # user might be PbsUser object
-                _user = pwd.getpwnam(str(user))
+                _user = self.getpwnam(str(user))
                 home = _user.pw_dir
                 uid = _user.pw_uid
             rhost = os.path.join(home, '.rhosts')
             (fd, fn) = self.mkstemp(hostname, mode=0755)
-            os.write(fd, '#!/bin/bash\n')
-            os.write(fd, 'cd %s\n' % (home))
-            os.write(fd, '%s -rf %s\n' % (self.which(hostname, 'rm'), rhost))
-            os.write(fd, 'touch %s\n' % (rhost))
             for k, v in conf.items():
                 if isinstance(v, list):
                     for eachprop in v:
-                        l = 'echo "%s %s" >> %s\n' % (str(k),
-                                                      str(eachprop),
-                                                      rhost)
-                        os.write(fd, l)
+                        os.write(fd, "%s %s%s" % (str(k), str(eachprop),
+                                                  os.linesep))
                 else:
-                    l = 'echo "%s %s" >> %s\n' % (str(k), str(v), rhost)
-                    os.write(fd, l)
-            os.write(fd, '%s 0600 %s\n' % (self.which(hostname, 'chmod'),
-                                           rhost))
+                    os.write(fd, "%s %s%s" % (str(k), str(v), os.linesep))
+            os.write(fd, os.linesep)
             os.close(fd)
-            ret = self.run_cmd(hostname, cmd=fn, runas=uid)
+            ret = self.run_copy(hostname, src=fn, dest=rhost, runas=_user,
+                                logerr=False)
             self.rm(hostname, path=fn)
+            self.chmod(hostname, path=rhost, mode=0600, runas=_user,
+                       logerr=False)
+            self.chown(hostname, path=rhost, uid=_user, gid=_user.pw_groups[0],
+                       logerr=False)
             if ret['rc'] != 0:
                 raise Exception(ret['out'] + ret['err'])
         except Exception, e:
-            raise PbsConfigError(rc=1, rv=None, msg='error writing .rhosts ' +
-                                 str(e))
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='error writing .rhosts ' + str(e))
         return conf
 
+    # TODO: move this to lib
     def map_pbs_conf_to_cmd(self, cmd_map={}, pconf={}):
         cmd = []
         for k, v in pconf.items():
@@ -484,17 +567,8 @@ class DshUtils(object):
         """
         if self._current_user is not None:
             return self._current_user
-        self._current_user = pwd.getpwuid(os.getuid())[0]
+        self._current_user = self.getpwuid(self.getuid())[0]
         return self._current_user
-
-    def check_user_exists(self, username=None, hostname=None):
-        if hostname is None:
-            hostname = socket.gethostname()
-
-        ret = self.run_cmd(hostname, ['id', username])
-        if ret['rc'] == 0:
-            return True
-        return False
 
     def check_group_membership(self, username=None, uid=None, grpname=None,
                                gid=None):
@@ -519,26 +593,26 @@ class DshUtils(object):
             return True
         if grpname:
             try:
-                _g = grp.getgrnam(grpname)
-                if username and username in _g.gr_mem:
+                _g = self.getgrnam(grpname)
+                smems = [str(x) for x in _g.gr_mem]
+                imems = [int(x) for x in _g.gr_mem]
+                if username is not None and username in smems:
                     return True
-                elif uid is not None:
-                    _u = pwd.getpwuid(uid)
-                    if _u.pwname in _g.gr_mem:
-                        return True
+                elif uid is not None and uid in imems:
+                    return True
             except:
-                self.logger.error('Unknown user')
+                self.logger.error('Unknown group')
         return False
 
-    def group_memberships(self, group_list=[]):
+    def group_memberships(self, group_list):
         """
         Returns all group memberships as a dictionary of group names and
         associated memberships
         """
         groups = {}
-        if not group_list:
+        if len(group_list) == 0:
             return groups
-        users_list = [u.pw_name for u in pwd.getpwall()]
+        users_list = [u.pw_name for u in self.getpwall()]
         glist = {}
         for u in users_list:
             info = self.get_id_info(u)
@@ -556,7 +630,7 @@ class DshUtils(object):
                 groups[g] = glist[g]
             else:
                 try:
-                    i = grp.getgrnam(g)
+                    i = self.getgrnam(g)
                     groups[g] = i.gr_mem
                 except KeyError:
                     pass
@@ -565,25 +639,31 @@ class DshUtils(object):
     def get_id_info(self, user):
         """
         Return user info in dic format
-        obtained by "id -a <user>" command for given user
 
         user - The username to inquire about
 
         Returned dic format:
-            {
-                "uid": <uid of given user>,
-                "gid": <gid of given user's primary group>,
-                "name": <name of given user>,
-                "pgroup": <name of primary group of given user>,
-                "groups": <list of names of groups of given user>
-            }
+        {
+            "uid": <uid of given user>,
+            "gid": <gid of given user's primary group>,
+            "name": <name of given user>,
+            "pgroup": <name of primary group of given user>,
+            "groups": <list of names of groups of given user>
+        }
         """
         info = {'uid': None, 'gid': None, 'name': None, 'pgroup': None,
                 'groups': None}
-        ret = self.run_cmd(cmd=['id', '-a', str(user)], logerr=True)
+        if self.is_linux:
+            ret = self.run_cmd(cmd=['id', '-a', str(user)], logerr=False)
+        elif self.is_windows:
+            ret = self.run_cmd(cmd=['Get-UserInfo', '-All', '-Name', str(user)],
+                               logerr=False)
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
         if ret['rc'] == 0:
-            p = re.compile(r'(?P<uid>\d+)\((?P<name>[\w\s."\'-]+)\)')
-            map_list = re.findall(p, ret['out'][0])
+            p = re.compile(r'(?P<uid>\d+)\((?P<name>[\w\s."\\\'-]+)\)')
+            map_list = re.findall(p, ret['out'][0].strip())
             info['uid'] = int(map_list[0][0])
             info['name'] = map_list[0][1].strip()
             info['gid'] = int(map_list[1][0])
@@ -600,31 +680,46 @@ class DshUtils(object):
         Return the temporary directory on the given host
         Default host is localhost.
         """
-        # return the cached value whenever possible
-
         if hostname is None:
             hostname = socket.gethostname()
-
         if hostname in self._tempdir:
             return self._tempdir[hostname]
-
         if self.is_localhost(hostname):
             self._tempdir[hostname] = tempfile.gettempdir()
         else:
-            cmd = ['python', '-c',
+            cmd = [self.which(hostname, 'python'), '-c',
                    '"import tempfile;print tempfile.gettempdir()"']
             ret = self.run_cmd(hostname, cmd, level=logging.DEBUG)
             if ret['rc'] == 0:
                 self._tempdir[hostname] = ret['out'][0].strip()
             else:
-                # Optimistically fall back to /tmp.
-                self._tempdir[hostname] = '/tmp'
+                # Optimistically fall back to tempfile.gettempdir() on localhost
+                self._tempdir[hostname] = tempfile.gettempdir()
         return self._tempdir[hostname]
 
-    def run_cmd(self, hosts=None, cmd=None, sudo=False, stdin=None,
-                stdout=PIPE, stderr=PIPE, input=None, cwd=None, env=None,
-                runas=None, logerr=True, as_script=False, wait_on_script=True,
-                level=logging.INFOCLI2):
+    def __run_cmd_windows(self, hosts=None, cmd=None, sudo=False, stdin=None,
+                          stdout=PIPE, stderr=PIPE, input=None, cwd=None,
+                          env=None, runas=None, logerr=True, as_script=False,
+                          wait_on_script=True, level=LOG_INFOCLI2):
+        if hosts is None:
+            hosts = socket.gethostname()
+        if isinstance(hosts, str):
+            hosts = hosts.split(',')
+        if not isinstance(hosts, list):
+            err_msg = 'target hostnames must be a comma-separated '
+            err_msg += 'string or list'
+            raise PtlUtilError(rc=1, rv=False, msg=err_msg)
+        if isinstance(cmd, (list, tuple)):
+            cmd = " ".join(cmd)
+        psm_path = os.path.dirname(os.path.abspath(os.path.abspath(__file__)))
+        psm_path = os.path.join(psm_path, 'psm')
+        ps_script = ['$env:PSModulePath += ";%s"' % psm_path]
+        ps_script += ['Import-Module ptl']
+
+    def __run_cmd_linux(self, hosts=None, cmd=None, sudo=False, stdin=None,
+                        stdout=PIPE, stderr=PIPE, input=None, cwd=None,
+                        env=None, runas=None, logerr=True, as_script=False,
+                        wait_on_script=True, level=LOG_INFOCLI2):
         """
         Run a command on a host or list of hosts.
 
@@ -660,165 +755,151 @@ class DshUtils(object):
         to return.
 
         Returns error, output, and return code as a dictionary
-        {'out':...,'err':...,'rc':...}
+        {'out':...,'err':...,'rc':...} if hosts has only one hostname
+        {'hostname': {'out':...,'err':...,'rc':...},
+         ...
+        } if hosts has more that one hostname
         """
 
         rshcmd = []
         sudocmd = []
-
         if level is None:
             level = self.logger.level
-
         _user = self.get_current_user()
-
         # runas may be a PbsUser object, ensure it is a string for the
-        # remainder of the function
+        # remaining of the function
         if runas is not None:
             if isinstance(runas, int):
-                runas = pwd.getpwuid(runas).pw_name
+                runas = self.getpwuid(runas).pw_name
             elif not isinstance(runas, str):
                 # must be as PbsUser object
                 runas = str(runas)
-
         if isinstance(cmd, str):
             cmd = cmd.split()
-
         if hosts is None:
             hosts = socket.gethostname()
-
         if isinstance(hosts, str):
             hosts = hosts.split(',')
-
         if not isinstance(hosts, list):
-            err_msg = 'target hostnames must be a comma-separated ' + \
-                'string or list'
-            self.logger.error(err_msg)
-            return {'out': '', 'err': err_msg, 'rc': 1}
-
-        ret = {'out': '', 'err': '', 'rc': 0}
-
-        for hostname in hosts:
-            islocal = self.is_localhost(hostname)
-            if islocal is None:
-                # an error occurred processing that name, move on
-                # the error is logged in is_localhost.
-                ret['err'] = 'error getting host by name in run_cmd'
-                ret['rc'] = 1
-                continue
+            err_msg = 'target hostnames must be a comma-separated '
+            err_msg += 'string or list'
+            raise PtlUtilError(rc=1, rv=False, msg=err_msg)
+        ret = {}
+        for targethost in hosts:
+            islocal = self.is_localhost(targethost)
             if not islocal:
-                rshcmd = self.rsh_cmd + [hostname]
+                rshcmd = ['ssh'] + [targethost]
             if sudo or ((runas is not None) and (runas != _user)):
-                sudocmd = copy.copy(self.sudo_cmd)
+                sudocmd = ['sudo', '-H']
                 if runas is not None:
                     sudocmd += ['-u', runas]
-
             # Initialize information to return
-            ret = {'out': None, 'err': None, 'rc': None}
-            rc = rshcmd + sudocmd + cmd
+            reth = {'out': None, 'err': None, 'rc': None}
             if as_script:
                 _fd, _script = self.mkstemp()
                 f = open(_script, 'w')
                 script_body = ['#!/bin/bash']
                 if cwd is not None:
-                    script_body += ['cd "%s"' % (cwd)]
+                    script_body += ['cd "%s"' % cwd]
                     cwd = None
                 if isinstance(cmd, str):
                     script_body += [cmd]
                 elif isinstance(cmd, list):
                     script_body += [" ".join(cmd)]
-                f.write('\n'.join(script_body))
+                f.write(os.linesep.join(script_body))
                 os.close(_fd)
                 f.close()
                 os.chmod(_script, 0755)
                 if not islocal:
-                    # TODO: get a valid remote temporary file rather than
-                    # assume that the remote host has a similar file
-                    # system layout
-                    self.run_copy(hostname, _script, _script)
+                    self.run_copy(targethost, _script, _script)
                     os.remove(_script)
                 runcmd = rshcmd + sudocmd + [_script]
             else:
-                runcmd = rc
-
-            _msg = hostname.split('.')[0] + ': '
+                runcmd = rshcmd + sudocmd + cmd
+            _msg = targethost.split('.')[0] + ': '
             _runcmd = map(lambda x: '\'\'' if x == '' else str(x), runcmd)
             _msg += ' '.join(_runcmd)
             _msg = [_msg]
             if as_script:
                 _msg += ['Contents of ' + _script + ':']
-                _msg += ['-' * 40, '\n'.join(script_body), '-' * 40]
-            self.logger.log(level, '\n'.join(_msg))
-
+                _msg += ['-' * 40, os.linesep.join(script_body), '-' * 40]
+            self.logger.log(level, os.linesep.join(_msg))
             if input:
                 self.logger.log(level, input)
-
             try:
                 p = Popen(runcmd, bufsize=-1, stdin=stdin, stdout=stdout,
                           stderr=stderr, cwd=cwd, env=env)
             except Exception, e:
-                self.logger.error("Error running command " + str(runcmd))
+                _msg = "Error running command " + str(runcmd)
                 if as_script:
-                    self.logger.error('Script contents: \n' +
-                                      '\n'.join(script_body))
-                self.logger.debug(str(e))
-                raise
-
+                    _msg += os.linesep + 'Script contents: ' + os.linesep
+                    _msg += os.linesep.join(script_body)
+                _msg += os.linesep + str(e)
+                raise PtlUtilError(rc=1, rv=False, msg=_msg)
             if as_script and not wait_on_script:
                 o = p.stdout.readline()
                 e = p.stderr.readline()
-                ret['rc'] = 0
+                reth['rc'] = 0
             else:
                 (o, e) = p.communicate(input)
-                ret['rc'] = p.returncode
-
-                # Platform specific handling:
-                # default HP-UX 11.31b config is to emit a special
-                # message to stderr (Last successful login ... Last
-                # authentication failure...) for every sudo operation,
-                # we ignore those messages in the error message
-                if sys.platform == 'hp-ux11':
-                    if e.startswith('Last successful login'):
-                        tmp_e = e.splitlines()
-                        if len(tmp_e) > 0:
-                            del tmp_e[0]
-                        if ((len(tmp_e) > 0) and
-                                (tmp_e[0].
-                                 startswith('Last authentication'))):
-                            del tmp_e[0]
-                        e = "\n".join(tmp_e)
-
+                reth['rc'] = p.returncode
             if as_script:
                 # must pass as_script=False otherwise it will loop infinite
-                self.rm(hostname, path=_script, as_script=False)
-
+                self.rm(targethost, path=_script, as_script=False)
             # handle the case where stdout is not a PIPE
             if o is not None:
-                ret['out'] = o.splitlines()
+                reth['out'] = o.splitlines()
             else:
-                ret['out'] = []
+                reth['out'] = []
             # Some output can be very verbose, for example listing many lines
             # of a log file, those messages are typically channeled through
             # at level DEBUG2, since we don't to pollute the output with too
             # verbose an information, we log at most at level DEBUG
             if level < logging.DEBUG:
-                self.logger.log(level, 'out: ' + str(ret['out']))
+                self.logger.log(level, 'out: ' + str(reth['out']))
             else:
-                self.logger.debug('out: ' + str(ret['out']))
+                self.logger.debug('out: ' + str(reth['out']))
             if e is not None:
-                ret['err'] = e.splitlines()
+                reth['err'] = e.splitlines()
             else:
-                ret['err'] = []
-            if ret['err'] and logerr:
-                self.logger.error('err: ' + str(ret['err']))
+                reth['err'] = []
+            if reth['err'] and logerr:
+                self.logger.error('err: ' + str(reth['err']))
             else:
-                self.logger.debug('err: ' + str(ret['err']))
-            self.logger.debug('rc: ' + str(ret['rc']))
-
+                self.logger.debug('err: ' + str(reth['err']))
+            self.logger.debug('rc: ' + str(reth['rc']))
+            if len(hosts) > 1:
+                ret[targethost] = copy.deepcopy(reth)
+            else:
+                ret = reth
         return ret
 
+    def run_cmd(self, hosts=None, cmd=None, sudo=False, stdin=None,
+                stdout=PIPE, stderr=PIPE, input=None, cwd=None,
+                env=None, runas=None, logerr=True, as_script=False,
+                wait_on_script=True, level=LOG_INFOCLI2):
+        if self.is_linux:
+            return self.__run_cmd_linux(hosts=hosts, cmd=cmd, sudo=sudo,
+                                        stdin=stdin, stdout=stdout,
+                                        stderr=stderr, input=input, cwd=cwd,
+                                        env=env, runas=runas, logerr=logerr,
+                                        as_script=as_script,
+                                        wait_on_script=wait_on_script,
+                                        level=level)
+        elif self.is_windows:
+            return self.__run_cmd_windows(hosts=hosts, cmd=cmd, sudo=sudo,
+                                          stdin=stdin, stdout=stdout,
+                                          stderr=stderr, input=input, cwd=cwd,
+                                          env=env, runas=runas, logerr=logerr,
+                                          as_script=as_script,
+                                          wait_on_script=wait_on_script,
+                                          level=level)
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
     def run_copy(self, hosts=None, src=None, dest=None, sudo=False, uid=None,
                  gid=None, mode=None, env=None, logerr=True,
-                 recursive=False, runas=None, level=logging.INFOCLI2):
+                 recursive=False, runas=None, level=LOG_INFOCLI2):
         """
         copy a file or directory to specified target hosts.
 
@@ -855,40 +936,29 @@ class DshUtils(object):
         and None if no source file specified
         """
         if src is None:
-            self.logger.warning('no source file specified')
-            return None
-
+            raise PtlUtilError(rc=1, rv=False, msg='no source file specified')
         if hosts is None:
             hosts = socket.gethostname()
-
         if isinstance(hosts, str):
             hosts = hosts.split(',')
-
         if not isinstance(hosts, list):
-            self.logger.error('destination must be a string or a list')
-            return 1
-
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='destination must be a string or a list')
         if dest is None:
             dest = src
-
-        # If PTL_SUDO_CMD were to be unset we should assume no sudo
-        if sudo is True and not self.sudo_cmd:
-            sudo = False
-
         for targethost in hosts:
             islocal = self.is_localhost(targethost)
             if sudo and not islocal:
                 # to avoid a file copy as root, we copy it as current user
                 # and move it remotely to the desired path/name.
                 # First, get a remote temporary filename
-                cmd = ['python', '-c',
+                cmd = [self.which(targethost, 'python'), '-c',
                        '"import tempfile;print ' +
                        'tempfile.mkstemp(\'PtlPbstmpcopy\')[1]"']
                 # save original destination
                 sudo_save_dest = dest
                 # Make the target of the copy the temporary file
-                dest = self.run_cmd(targethost, cmd,
-                                    level=level,
+                dest = self.run_cmd(targethost, cmd, level=level,
                                     logerr=logerr)['out'][0]
                 cmd = []
             else:
@@ -896,16 +966,13 @@ class DshUtils(object):
                 # command to run accordingly
                 sudo_save_dest = None
                 if sudo:
-                    cmd = copy.copy(self.sudo_cmd)
+                    cmd = [self.which(targethost, 'sudo'), '-H']
                 else:
                     cmd = []
-
             # Remote copy if target host is remote or if source file/dir is
             # remote.
-            if ((not islocal) or (':' in src)):
-                copy_cmd = copy.deepcopy(self.copy_cmd)
-                if copy_cmd[0][0] != '/':
-                    copy_cmd[0] = self.which(targethost, copy_cmd[0])
+            if (not islocal) or (':' in src):
+                copy_cmd = [self.which(targethost, 'scp'), '-p']
                 cmd += copy_cmd
                 if recursive:
                     cmd += ['-r']
@@ -920,20 +987,18 @@ class DshUtils(object):
                     cmd += ['-r']
                 cmd += [src]
                 cmd = cmd + [dest]
-
             ret = self.run_cmd(socket.gethostname(), cmd, env=env, runas=runas,
                                logerr=logerr, level=level)
-
             if ret['rc'] != 0:
-                self.logger.error(ret['err'])
+                raise PtlUtilError(rc=ret['rc'], rv=False, msg=str(ret['err']))
             elif sudo_save_dest:
                 cmd = [self.which(targethost, 'mv')]
                 cmd += [dest, sudo_save_dest]
                 ret = self.run_cmd(targethost, cmd=cmd, sudo=True, level=level)
                 dest = sudo_save_dest
                 if ret['rc'] != 0:
-                    self.logger.error(ret['err'])
-
+                    raise PtlUtilError(rc=ret['rc'], rv=False,
+                                       msg=str(ret['err']))
             if mode is not None:
                 self.chmod(targethost, path=dest, mode=mode, sudo=sudo,
                            runas=runas)
@@ -941,20 +1006,19 @@ class DshUtils(object):
                     gid is not None):
                 self.chown(targethost, path=dest, uid=uid, gid=gid, sudo=True,
                            recursive=False)
-
             return ret
 
     def run_ptl_cmd(self, hostname, cmd, sudo=False, stdin=None, stdout=PIPE,
                     stderr=PIPE, input=None, cwd=None, env=None, runas=None,
                     logerr=True, as_script=False, wait_on_script=True,
-                    level=logging.INFOCLI2):
+                    level=LOG_INFOCLI2):
         """
         Wrapper method of run_cmd to run PTL command
         """
         # Add absolute path of command also add log level to command
         self.logger.infocli('running command "%s" on %s' % (' '.join(cmd),
                                                             hostname))
-        _cmd = [self.which(exe=cmd[0])]
+        _cmd = [self.which(hostname, exe=cmd[0])]
         _cmd += ['-l', logging.getLevelName(self.logger.parent.level)]
         _cmd += cmd[1:]
         cmd = _cmd
@@ -962,18 +1026,16 @@ class DshUtils(object):
         dest = None
         if ('PYTHONPATH' in os.environ.keys() and
                 not self.is_localhost(hostname)):
+            # TODO: change this
             body = ['#!/bin/bash']
             body += ['PYTHONPATH=%s exec %s' % (os.environ['PYTHONPATH'],
                                                 ' '.join(cmd))]
             fd, fn = self.mkstemp(mode=0777)
-            os.write(fd, '\n'.join(body))
+            os.write(fd, os.linesep.join(body))
             os.close(fd)
             tmpdir = self.get_tempdir(hostname)
             dest = os.path.join(tmpdir, os.path.basename(fn))
-            oldc = self.copy_cmd[:]
-            self.set_copy_cmd('scp -p')
             self.run_copy(hostname, fn, dest, mode=0777)
-            self.set_copy_cmd(' '.join(oldc))
             self.rm(None, path=fn, sudo=True, force=True, logerr=False)
             cmd = dest
         ret = self.run_cmd(hostname, cmd, sudo, stdin, stdout, stderr, input,
@@ -987,30 +1049,6 @@ class DshUtils(object):
             ret['err'] = []
         return ret
 
-    @classmethod
-    def set_sudo_cmd(cls, cmd):
-        """
-        set the sudo command
-        """
-        cls.logger.infocli('setting sudo command to ' + cmd)
-        cls.sudo_cmd = cmd.split()
-
-    @classmethod
-    def set_copy_cmd(cls, cmd):
-        """
-        set the copy command
-        """
-        cls.logger.infocli('setting copy command to ' + cmd)
-        cls.copy_cmd = cmd.split()
-
-    @classmethod
-    def set_rsh_cmd(cls, cmd):
-        """
-        set the remote shell command
-        """
-        cls.logger.infocli('setting remote shell command to ' + cmd)
-        cls.rsh_cmd = cmd.split()
-
     def is_localhost(self, host=None):
         """
         returns true if specified host (by name) is the localhost
@@ -1018,17 +1056,13 @@ class DshUtils(object):
         """
         if host is None:
             return True
-
         if host in self._h2l:
             return self._h2l[host]
-
         try:
             (hostname, aliaslist, iplist) = socket.gethostbyname_ex(host)
         except:
-            self.logger.error('error getting host by name: ' + host)
-            print traceback.print_stack()
-            return None
-
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='error getting host by name: ' + host)
         localhost = socket.gethostname()
         if localhost == hostname or localhost in aliaslist:
             self._h2l[host] = True
@@ -1044,7 +1078,7 @@ class DshUtils(object):
         return False
 
     def isdir(self, hostname=None, path=None, sudo=False, runas=None,
-              level=logging.INFOCLI2):
+              level=LOG_INFOCLI2):
         """
         Returns True if directory pointed to by path exists and False otherwise
 
@@ -1060,30 +1094,35 @@ class DshUtils(object):
         """
         if path is None:
             return False
-
-        if (self.is_localhost(hostname) and (not sudo) and (runas is None)):
+        if self.is_localhost(hostname) and (not sudo) and (runas is None):
             return os.path.isdir(path)
         else:
-            # Constraints on the build system prevent running commands as
-            # a privileged user through python, fall back to ls
-            dirname = os.path.dirname(path)
-            basename = os.path.basename(path)
-            cmd = ['ls', '-l', dirname]
-            self.logger.log(level, "grep'ing for " + basename + " in " +
-                            dirname)
-            ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, runas=runas,
-                               logerr=False, level=level)
-            if ret['rc'] != 0:
+            if self.is_linux:
+                dirname = os.path.dirname(path)
+                basename = os.path.basename(path)
+                cmd = ['ls', '-l', dirname]
+                ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, runas=runas,
+                                   logerr=False, level=level)
+                if ret['rc'] != 0:
+                    return False
+                else:
+                    for l in ret['out']:
+                        if basename == l[-len(basename):] and l.startswith('d'):
+                            return True
+                return False
+            elif self.is_windows:
+                cmd = ['Test-Path', '-PathType', 'Container', '-Path', path]
+                ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, runas=runas,
+                                   logerr=False, level=level)
+                if ret['rc'] == 0:
+                    return eval(ret['out'][0].strip())
                 return False
             else:
-                for l in ret['out']:
-                    if basename == l[-len(basename):] and l.startswith('d'):
-                        return True
-
-        return False
+                raise PtlUtilError(rc=1, rv=False,
+                                   msg='Unsupported platform detected!')
 
     def isfile(self, hostname=None, path=None, sudo=False, runas=None,
-               level=logging.INFOCLI2):
+               level=LOG_INFOCLI2):
         """
         Returns True if file pointed to by path exists, and False otherwise
 
@@ -1100,25 +1139,32 @@ class DshUtils(object):
 
         if path is None:
             return False
-
-        if (self.is_localhost(hostname) and (not sudo) and (runas is None)):
+        if self.is_localhost(hostname) and (not sudo) and (runas is None):
             return os.path.isfile(path)
         else:
-            # Constraints on the build system prevent running commands as
-            # a privileged user through python, fall back to ls
-            cmd = ['ls', '-l', path]
-            ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, runas=runas,
-                               logerr=False, level=level)
-            if ret['rc'] != 0:
+            if self.is_linux:
+                cmd = ['ls', '-l', path]
+                ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, runas=runas,
+                                   logerr=False, level=level)
+                if ret['rc'] != 0:
+                    return False
+                elif ret['out']:
+                    if not ret['out'][0].startswith('d'):
+                        return True
                 return False
-            elif ret['out']:
-                if not ret['out'][0].startswith('d'):
-                    return True
-
-        return False
+            elif self.is_windows:
+                cmd = ['Test-Path', '-PathType', 'Leaf', '-Path', path]
+                ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, runas=runas,
+                                   logerr=False, level=level)
+                if ret['rc'] == 0:
+                    return eval(ret['out'][0].strip())
+                return False
+            else:
+                raise PtlUtilError(rc=1, rv=False,
+                                   msg='Unsupported platform detected!')
 
     def getmtime(self, hostname=None, path=None, sudo=False, runas=None,
-                 level=logging.INFOCLI2):
+                 level=LOG_INFOCLI2):
         """
         Returns Modified time of given file
 
@@ -1135,14 +1181,10 @@ class DshUtils(object):
 
         if path is None:
             return None
-
-        if (self.is_localhost(hostname) and (not sudo) and (runas is None)):
+        if self.is_localhost(hostname) and (not sudo) and (runas is None):
             return os.path.getmtime(path)
         else:
-            py_cmd = 'import os; print os.path.getmtime(\'%s\')' % (path)
-            if not self.is_localhost(hostname):
-                py_cmd = '\"' + py_cmd + '\"'
-
+            py_cmd = '"import os; print os.path.getmtime(\'%s\')"' % path
             cmd = [self.which(hostname, 'python'), '-c', py_cmd]
             ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, runas=runas,
                                logerr=False, level=level)
@@ -1152,7 +1194,7 @@ class DshUtils(object):
         return None
 
     def listdir(self, hostname=None, path=None, sudo=False, runas=None,
-                level=logging.INFOCLI2):
+                level=LOG_INFOCLI2):
         """
         Return a list containing the names of the entries in the directory
 
@@ -1168,17 +1210,30 @@ class DshUtils(object):
 
         if path is None:
             return None
-
-        if (self.is_localhost(hostname) and (not sudo) and (runas is None)):
+        if self.is_localhost(hostname) and (not sudo) and (runas is None):
             files = os.listdir(path)
+            return map(lambda p: os.path.join(path, p.strip()), files)
         else:
-            ret = self.run_cmd(hostname, cmd=['ls', path], sudo=sudo,
-                               runas=runas, logerr=False, level=level)
-            if ret['rc'] == 0:
-                files = ret['out']
+            if self.is_linux:
+                ret = self.run_cmd(hostname, cmd=['ls', path], sudo=sudo,
+                                   runas=runas, logerr=False, level=level)
+                if ret['rc'] == 0:
+                    files = ret['out']
+                else:
+                    return None
+                return map(lambda p: os.path.join(path, p.strip()), files)
+            elif self.is_windows:
+                cmd = ['Get-Dir', '-Path', path]
+                ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, runas=runas,
+                                   logerr=False, level=level)
+                if ret['rc'] == 0:
+                    files = ret['out']
+                else:
+                    return None
+                return map(lambda p: p.strip(), files)
             else:
-                return None
-        return map(lambda p: os.path.join(path, p.strip()), files)
+                raise PtlUtilError(rc=1, rv=False,
+                                   msg='Unsupported platform detected!')
 
     def chmod(self, hostname=None, path=None, mode=None, sudo=False,
               runas=None, recursive=False, logerr=True,
@@ -1199,6 +1254,8 @@ class DshUtils(object):
         recursive - whether to chmod a directory (when true) or a file.
         Defaults to False.
 
+        cwd - working directory on local host from which command is run
+
         logerr - whether to log error messages or not. Defaults to True.
 
         level - logging level, defaults to INFOCLI2
@@ -1207,19 +1264,35 @@ class DshUtils(object):
         """
         if (path is None) or (mode is None):
             return False
-        cmd = [self.which(hostname, 'chmod')]
-        if recursive:
-            cmd += ['-R']
-        cmd += [oct(mode), path]
+        if self.is_linux:
+            cmd = [self.which(hostname, 'chmod')]
+            if recursive:
+                cmd += ['-R']
+            cmd += [oct(mode)]
+            if isinstance(path, (list, tuple)):
+                cmd += path
+            else:
+                cmd += [path]
+        elif self.is_windows:
+            cmd = ['Set-FileMode', '-Mode', oct(mode), '-Path']
+            if isinstance(path, (list, tuple)):
+                cmd += [','.join(map(lambda x: '"' + x + '"', path))]
+            else:
+                cmd += [path]
+            if recursive:
+                cmd += ['-Recurse']
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
         ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, logerr=logerr,
-                           runas=runas, level=level)
+                           runas=runas, cwd=cwd, level=level)
         if ret['rc'] == 0:
             return True
         return False
 
     def chown(self, hostname=None, path=None, uid=None, gid=None, sudo=False,
-              recursive=False, runas=None, logerr=True,
-              level=logging.INFOCLI2):
+              recursive=False, runas=None, cwd=None, logerr=True,
+              level=LOG_INFOCLI2):
         """
         Generic function of chown with remote host support
 
@@ -1238,6 +1311,8 @@ class DshUtils(object):
 
         runas - run command as user
 
+        cwd - working directory on local host from which command is run
+
         logerr - whether to log error messages or not. Defaults to True.
 
         level - logging level, defaults to INFOCLI2
@@ -1247,9 +1322,9 @@ class DshUtils(object):
         if path is None or (uid is None and gid is None):
             return False
         _u = ''
-        if isinstance(uid, int)and uid != -1:
-            _u = pwd.getpwuid(uid).pw_name
-        elif (isinstance(uid, str) and (uid != '-1')):
+        if isinstance(uid, int) and uid != -1:
+            _u = self.getpwuid(uid).pw_name
+        elif isinstance(uid, str) and (uid != '-1'):
             _u = uid
         else:
             # must be as PbsUser object
@@ -1257,25 +1332,41 @@ class DshUtils(object):
                 _u = str(uid)
         if _u == '':
             return False
-        cmd = [self.which(hostname, 'chown')]
-        if recursive:
-            cmd += ['-R']
-        cmd += [_u, path]
+        if self.is_linux:
+            cmd = [self.which(hostname, 'chown')]
+            if recursive:
+                cmd += ['-R']
+            cmd += [_u]
+            if isinstance(path, (list, tuple)):
+                cmd += path
+            else:
+                cmd += [path]
+        elif self.is_windows:
+            cmd = ['Set-FileOwner', '-Owner', _u, '-Path']
+            if isinstance(path, (list, tuple)):
+                cmd += [','.join(map(lambda x: '"' + x + '"', path))]
+            else:
+                cmd += [path]
+            if recursive:
+                cmd += ['-Recurse']
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
         ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, logerr=logerr,
-                           runas=runas, level=level)
+                           runas=runas, cwd=cwd, level=level)
         if ret['rc'] == 0:
             if gid is not None:
                 rv = self.chgrp(hostname, path, gid=gid, sudo=sudo,
-                                level=level, recursive=recursive, runas=runas,
-                                logerr=logerr)
+                                level=level, recursive=recursive, cwd=cwd,
+                                runas=runas, logerr=logerr)
                 if not rv:
                     return False
             return True
         return False
 
     def chgrp(self, hostname=None, path=None, gid=None, sudo=False,
-              recursive=False, runas=None, logerr=True,
-              level=logging.INFOCLI2):
+              recursive=False, runas=None, cwd=None, logerr=True,
+              level=LOG_INFOCLI2):
         """
         Generic function of chgrp with remote host support
 
@@ -1292,6 +1383,8 @@ class DshUtils(object):
 
         runas - run command as user
 
+        cwd - working directory on local host from which command is run
+
         logerr - whether to log error messages or not. Defaults to True.
 
         level - logging level, defaults to INFOCLI2
@@ -1300,33 +1393,44 @@ class DshUtils(object):
         """
         if path is None or gid is None:
             return False
-
         _g = ''
         if isinstance(gid, int) and gid != -1:
-            _g = grp.getgrgid(gid).gr_name
-        elif (isinstance(gid, str) and (gid != '-1')):
+            _g = self.getgrgid(gid).gr_name
+        elif isinstance(gid, str) and (gid != '-1'):
             _g = gid
         else:
             # must be as PbsGroup object
             if str(gid) != '-1':
                 _g = str(gid)
-
         if _g == '':
             return False
-
-        cmd = [self.which(hostname, 'chgrp')]
-        if recursive:
-            cmd += ['-R']
-        cmd += [_g, path]
-
+        if self.is_linux:
+            cmd = [self.which(hostname, 'chgrp')]
+            if recursive:
+                cmd += ['-R']
+            cmd += [_g]
+            if isinstance(path, (list, tuple)):
+                cmd += path
+            else:
+                cmd += [path]
+        elif self.is_windows:
+            cmd = ['Set-FileGroup', '-Group', _g, '-Path']
+            if isinstance(path, (list, tuple)):
+                cmd += [','.join(map(lambda x: '"' + x + '"', path))]
+            else:
+                cmd += [path]
+            if recursive:
+                cmd += ['-Recurse']
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
         ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, logerr=logerr,
-                           runas=runas, level=level)
+                           runas=runas, cwd=cwd, level=level)
         if ret['rc'] == 0:
             return True
-
         return False
 
-    def which(self, hostname=None, exe=None, level=logging.INFOCLI2):
+    def which(self, hostname=None, exe=None, level=LOG_INFOCLI2):
         """
         Generic function of which with remote host support
 
@@ -1339,30 +1443,32 @@ class DshUtils(object):
         """
         if exe is None:
             return None
-
         if hostname is None:
             hostname = socket.gethostname()
-
         oexe = exe
         exe = os.path.basename(exe)
         if hostname in self._h2which.keys():
             if exe in self._h2which[hostname]:
                 return self._h2which[hostname][exe]
-
-        sudo_wrappers_dir = '/opt/tools/wrappers'
-        _exe = os.path.join(sudo_wrappers_dir, exe)
-        if os.path.isfile(_exe) and os.access(_exe, os.X_OK):
-            if hostname not in self._h2which.keys():
-                self._h2which.setdefault(hostname, {exe: _exe})
-            else:
-                self._h2which[hostname].setdefault(exe, _exe)
-            return _exe
-
-        cmd = ['which', exe]
+        if self.is_linux:
+            sudo_wrappers_dir = '/opt/tools/wrappers'
+            _exe = os.path.join(sudo_wrappers_dir, exe)
+            if os.path.isfile(_exe) and os.access(_exe, os.X_OK):
+                if hostname not in self._h2which.keys():
+                    self._h2which.setdefault(hostname, {exe: _exe})
+                else:
+                    self._h2which[hostname].setdefault(exe, _exe)
+                return _exe
+            cmd = ['which']
+        elif self.is_windows:
+            cmd = ['Find-Command', '-Path']
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
+        cmd += [exe]
         ret = self.run_cmd(hostname, cmd=cmd, logerr=False,
                            level=level)
-        if ((ret['rc'] == 0) and (len(ret['out']) == 1) and
-                os.path.isabs(ret['out'][0].strip())):
+        if (ret['rc'] == 0) and (len(ret['out']) == 1):
             path = ret['out'][0].strip()
             if hostname not in self._h2which.keys():
                 self._h2which.setdefault(hostname, {exe: path})
@@ -1374,7 +1480,7 @@ class DshUtils(object):
 
     def rm(self, hostname=None, path=None, sudo=False, runas=None,
            recursive=False, force=False, cwd=None, logerr=True,
-           as_script=False, level=logging.INFOCLI2):
+           as_script=False, level=LOG_INFOCLI2):
         """
         Generic function of rm with remote host support
 
@@ -1407,40 +1513,72 @@ class DshUtils(object):
         """
         if (path is None) or (len(path) == 0):
             return True
-
-        cmd = [self.which(hostname, 'rm')]
-        if recursive and force:
-            cmd += ['-rf']
-        else:
-            if recursive:
-                cmd += ['-r']
-            if force:
-                cmd += ['-f']
-
-        if isinstance(path, list):
-            for p in path:
-                if p == '/':
-                    msg = 'encountered a dangerous package path ' + p
-                    self.logger.error(msg)
-                    return False
-            cmd += path
-        else:
-            if path == '/':
-                msg = 'encountered a dangerous package path ' + path
-                self.logger.error(msg)
+        if self.is_linux:
+            cmd = [self.which(hostname, 'rm')]
+            if recursive and force:
+                cmd += ['-rf']
+            else:
+                if recursive:
+                    cmd += ['-r']
+                if force:
+                    cmd += ['-f']
+            if isinstance(path, list):
+                for p in path:
+                    if p == '/':
+                        msg = 'encountered a dangerous package path ' + p
+                        raise PtlUtilError(rc=1, rv=False, msg=msg)
+                cmd += path
+            else:
+                if path == '/':
+                    msg = 'encountered a dangerous package path ' + path
+                    raise PtlUtilError(rc=1, rv=False, msg=msg)
+                cmd += [path]
+            ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, logerr=logerr,
+                               runas=runas, cwd=cwd, level=level,
+                               as_script=as_script)
+            if ret['rc'] != 0:
                 return False
-            cmd += [path]
-
-        ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, logerr=logerr,
-                           runas=runas, cwd=cwd, level=level,
-                           as_script=as_script)
-        if ret['rc'] != 0:
-            return False
-        return True
+            return True
+        elif self.is_windows:
+            if isinstance(path, list):
+                for p in path:
+                    if p == 'C:\\':
+                        msg = 'encountered a dangerous package path ' + p
+                        raise PtlUtilError(rc=1, rv=False, msg=msg)
+            else:
+                if path == 'C:\\':
+                    msg = 'encountered a dangerous package path ' + path
+                    raise PtlUtilError(rc=1, rv=False, msg=msg)
+            _cmd = ['Remove-Item', '-Confirm:$false']
+            if recursive:
+                _cmd += ['-Recurse']
+            if force:
+                _cmd += ['-Force']
+            if isinstance(path, list):
+                for p in path:
+                    cmd = _cmd + [p]
+                    ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo,
+                                       logerr=logerr,
+                                       runas=runas, cwd=cwd, level=level,
+                                       as_script=as_script)
+                    if ret['rc'] != 0:
+                        return False
+                return True
+            else:
+                cmd = _cmd + [path]
+                ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, logerr=logerr,
+                                   runas=runas, cwd=cwd, level=level,
+                                   as_script=as_script)
+                if ret['rc'] != 0:
+                    return False
+                return True
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
 
     def mkdir(self, hostname=None, path=None, mode=None, sudo=False,
               runas=None, parents=True, cwd=None, logerr=True,
-              as_script=False, level=logging.INFOCLI2):
+              as_script=False, level=LOG_INFOCLI2):
         """
         Generic function of mkdir with remote host support
 
@@ -1472,25 +1610,63 @@ class DshUtils(object):
         """
         if (path is None) or (len(path) == 0):
             return True
-
-        cmd = [self.which(hostname, 'mkdir')]
-        if parents:
-            cmd += ['-p']
-        if mode is not None:
-            cmd += ['-m', oct(mode)]
-        if isinstance(path, list):
-            cmd += path
+        if self.is_linux:
+            cmd = [self.which(hostname, 'mkdir')]
+            if parents:
+                cmd += ['-p']
+            if mode is not None:
+                cmd += ['-m', oct(mode)]
+            if isinstance(path, list):
+                cmd += path
+            else:
+                cmd += [path]
+            ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, logerr=logerr,
+                               runas=runas, cwd=cwd, level=level,
+                               as_script=as_script)
+            if ret['rc'] != 0:
+                return False
+            return True
+        elif self.is_windows:
+            _cmd = ['New-Item', '-ItemType', 'Directory', '-Force']
+            _cmd += ['-Confirm:$false']
+            if isinstance(path, list):
+                for p in path:
+                    cmd = _cmd + [p]
+                    ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo,
+                                       logerr=logerr,
+                                       runas=runas, cwd=cwd, level=level,
+                                       as_script=as_script)
+                    if ret['rc'] != 0:
+                        return False
+                    if mode is not None:
+                        rc = self.chmod(hostname, path=p, mode=oct(mode),
+                                        sudo=sudo, recursive=parents,
+                                        runas=runas, cwd=cwd, logerr=logerr,
+                                        level=level)
+                        if not rc:
+                            return False
+                return True
+            else:
+                cmd = _cmd + [path]
+                ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, logerr=logerr,
+                                   runas=runas, cwd=cwd, level=level,
+                                   as_script=as_script)
+                if ret['rc'] != 0:
+                    return False
+                if mode is not None:
+                    rc = self.chmod(hostname, path=p, mode=oct(mode),
+                                    sudo=sudo, recursive=parents,
+                                    runas=runas, cwd=cwd, logerr=logerr,
+                                    level=level)
+                    if not rc:
+                        return False
+                return True
         else:
-            cmd += [path]
-        ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, logerr=logerr,
-                           runas=runas, cwd=cwd, level=level,
-                           as_script=as_script)
-        if ret['rc'] != 0:
-            return False
-        return True
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
 
     def cat(self, hostname=None, filename=None, sudo=False, runas=None,
-            logerr=True, level=logging.INFOCLI2):
+            cwd=None, logerr=True, level=LOG_INFOCLI2):
         """
         Generic function of cat with remote host support
 
@@ -1502,16 +1678,24 @@ class DshUtils(object):
 
         runas - create directories as given user. Defaults to calling user
 
+        cwd - working directory on local host from which command is run
+
         logerr - whether to log error messages or not. Defaults to True.
 
         Return - output of run_cmd
         """
-        cmd = [self.which(hostname, 'cat'), filename]
-        return self.run_cmd(hostname, cmd=cmd, sudo=sudo,
+        if self.is_linux:
+            cmd = [self.which(hostname, 'cat'), filename]
+        elif self.is_windows:
+            cmd = ['Get-Content', '"%s"' % filename]
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
+        return self.run_cmd(hostname, cmd=cmd, sudo=sudo, cwd=cwd,
                             runas=runas, logerr=logerr, level=level)
 
     def cmp(self, hostname=None, fileA=None, fileB=None, sudo=False,
-            runas=None, logerr=True):
+            runas=None, cwd=None, logerr=True):
         """
         Compare two files and return 0 if they are identical or non-zero if
         not
@@ -1526,23 +1710,23 @@ class DshUtils(object):
 
         runas - run the cmp command as given user
 
+        cwd - working directory on local host from which command is run
+
         logerr - whether to log error messages or not. Defaults to True.
         """
 
         if fileA is None and fileB is None:
             return 0
-
         if fileA is None or fileB is None:
             return 1
-
         cmd = ['cmp', fileA, fileB]
         ret = self.run_cmd(hostname, cmd=cmd, sudo=sudo, runas=runas,
-                           logerr=logerr)
+                           cwd=cwd, logerr=logerr)
         return ret['rc']
 
     def useradd(self, name, uid=None, gid=None, shell='/bin/bash',
                 create_home_dir=True, home_dir=None, groups=None, logerr=True,
-                level=logging.INFOCLI2):
+                level=LOG_INFOCLI2):
         self.logger.info('adding user ' + str(name))
         cmd = ['useradd']
         if uid is not None:
@@ -1555,60 +1739,52 @@ class DshUtils(object):
             cmd += ['-m']
         if home_dir is not None:
             cmd += ['-d', home_dir]
-        elif ((self.platform.startswith('sunos')) and create_home_dir):
-            cmd += ['-d', os.path.join('/export', 'home', str(name))]
-        if ((groups is not None) and (len(groups) > 0)):
+        if (groups is not None) and (len(groups) > 0):
             cmd += ['-G', ','.join(map(lambda g: str(g), groups))]
         cmd += [str(name)]
         ret = self.run_cmd(cmd=cmd, logerr=logerr, sudo=True, level=level)
-        if ((ret['rc'] != 0) and logerr):
+        if (ret['rc'] != 0) and logerr:
             raise PtlUtilError(rc=ret['rc'], rv=False, msg=ret['err'])
 
     def userdel(self, name, del_home=True, force=True, logerr=True,
-                level=logging.INFOCLI2):
+                level=LOG_INFOCLI2):
         try:
-            uinfo = pwd.getpwnam(str(name))
+            uinfo = self.getpwnam(str(name))
         except:
             if logerr:
                 self.logger.error("User %s does not exist!" % (str(name)))
             return
-        if self.platform.startswith('sunos'):
-            has_home = self.isdir(path=uinfo.pw_dir, sudo=True,
-                                  level=logging.DEBUG2)
-        else:
-            has_home = True
         cmd = ['userdel']
-        if has_home and del_home:
+        if del_home:
             cmd += ['-r']
-        if force and (not (self.platform.startswith('sunos') or
-                           self.platform.startswith('aix'))):
+        if force:
             cmd += ['-f']
         cmd += [str(name)]
         self.logger.info('deleting user ' + str(name))
         ret = self.run_cmd(cmd=cmd, sudo=True, logerr=False, level=level)
-        if ((ret['rc'] != 0) and logerr):
+        if (ret['rc'] != 0) and logerr:
             raise PtlUtilError(rc=ret['rc'], rv=False, msg=ret['err'])
 
-    def groupadd(self, name, gid=None, logerr=True, level=logging.INFOCLI2):
+    def groupadd(self, name, gid=None, logerr=True, level=LOG_INFOCLI2):
         self.logger.info('adding group ' + str(name))
         cmd = ['groupadd']
         if gid is not None:
             cmd += ['-g', str(gid)]
         cmd += [str(name)]
         ret = self.run_cmd(cmd=cmd, sudo=True, logerr=False, level=level)
-        if ((ret['rc'] != 0) and logerr):
+        if (ret['rc'] != 0) and logerr:
             raise PtlUtilError(rc=ret['rc'], rv=False, msg=ret['err'])
 
-    def groupdel(self, name, logerr=True, level=logging.INFOCLI2):
+    def groupdel(self, name, logerr=True, level=LOG_INFOCLI2):
         self.logger.info('deleting group ' + str(name))
         cmd = ['groupdel', str(name)]
         ret = self.run_cmd(cmd=cmd, sudo=True, logerr=logerr, level=level)
-        if ((ret['rc'] != 0) and logerr):
+        if (ret['rc'] != 0) and logerr:
             raise PtlUtilError(rc=ret['rc'], rv=False, msg=ret['err'])
 
     def mkstemp(self, hostname=None, suffix='', prefix='PtlPbs', dir=None,
                 text=False, uid=None, gid=None, mode=None, body=None,
-                level=logging.INFOCLI2):
+                level=LOG_INFOCLI2):
         """
         Create a temp file by calling tempfile.mkstemp
 
@@ -1633,7 +1809,6 @@ class DshUtils(object):
 
         level - logging level, defaults to INFOCLI2
         """
-
         if not self.is_localhost(hostname):
             tmp_args = []
             if suffix:
@@ -1646,8 +1821,9 @@ class DshUtils(object):
                 tmp_args += ['text=\'' + str(text) + '\'']
             args = ",".join(tmp_args)
             ret = self.run_cmd(hostname,
-                               ['python', '-c', '"import tempfile; ' +
-                                'print tempfile.mkstemp(' + args + ')"'],
+                               [self.which(hostname, 'python'), '-c',
+                                '"import tempfile; print tempfile.mkstemp('
+                                + args + ')"'],
                                level=level)
             if ret['rc'] == 0 and ret['out']:
                 (fd, fn) = eval(ret['out'][0])
@@ -1655,18 +1831,18 @@ class DshUtils(object):
             (fd, fn) = tempfile.mkstemp(suffix, prefix, dir, text)
         if body is not None:
             if isinstance(body, list):
-                os.write(fd, "\n".join(body))
+                os.write(fd, os.linesep.join(body))
             else:
                 os.write(fd, body)
         if mode is not None:
             self.chmod(hostname, fn, mode=mode,
-                       level=logging.INFOCLI2, sudo=True)
-        if ((uid is not None) or (gid is not None)):
+                       level=LOG_INFOCLI2, sudo=True)
+        if (uid is not None) or (gid is not None):
             self.chown(hostname, fn, uid=uid, gid=gid, sudo=True)
-        return (fd, fn)
+        return fd, fn
 
     def mkdtemp(self, hostname=None, suffix='', prefix='PtlPbs', dir=None,
-                uid=None, gid=None, mode=None, level=logging.INFOCLI2):
+                uid=None, gid=None, mode=None, level=LOG_INFOCLI2):
         """
         Create a temp dir by calling tempfile.mkdtemp
 
@@ -1696,8 +1872,9 @@ class DshUtils(object):
                 tmp_args += ['dir=\'' + str(dir) + '\'']
             args = ",".join(tmp_args)
             ret = self.run_cmd(hostname,
-                               ['python', '-c', '"import tempfile; ' +
-                                'print tempfile.mkdtemp(' + args + ')"'],
+                               [self.which(hostname, 'python'), '-c',
+                                '"import tempfile; print tempfile.mkdtemp('
+                                + args + ')"'],
                                level=level)
             if ret['rc'] == 0 and ret['out']:
                 fn = ret['out'][0]
@@ -1705,22 +1882,243 @@ class DshUtils(object):
             fn = tempfile.mkdtemp(suffix, prefix, dir)
         if mode is not None:
             self.chmod(hostname, fn, mode=mode, recursive=True,
-                       level=logging.INFOCLI2, sudo=True)
-        if ((uid is not None) or (gid is not None)):
+                       level=LOG_INFOCLI2, sudo=True)
+        if (uid is not None) or (gid is not None):
             self.chown(hostname, fn, uid=uid, gid=gid, recursive=True,
                        sudo=True)
         return fn
 
-    def parse_strace(self, lines):
-        """
-        strace parsing. Just the regular expressions for now (thanks to Carl)
-        """
-        timestamp_pat = r'(^(\d{2}:\d{2}:\d{2})(.\d+){0,1} |^(\d+.\d+) ){0,1}'
-        exec_pat = r'execve\(("[^"]+"), \[([^]]+)\], [^,]+ = (\d+)$'
+    @staticmethod
+    def __parse_ps_ug(lines):
+        _ret = {}
+        for l in lines:
+            l = l.strip()
+            if len(l) == 0:
+                continue
+            if '=' in l:
+                k, v = l.split('=')
+                _ret[k.strip()] = v.strip()
+            else:
+                _ret[l] = {}
+        return _ret
 
-        timestamp_exec_re = re.compile(timestamp_pat + exec_pat)
+    def getuid(self):
+        if self.is_linux:
+            return os.getuid()
+        elif self.is_windows:
+            ret = self.run_cmd(None, cmd=['Get-CurrentUserId'])
+            if ret['rc'] != 0:
+                msg = 'Failed to get uid!'
+                raise PtlUtilError(rc=1, rv=False, msg=msg)
+            else:
+                return int(ret['out'][0].strip())
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
 
-        for line in lines:
-            m = timestamp_exec_re.match(line)
-            if m:
-                print line
+    def getgid(self):
+        if self.is_linux:
+            return os.getgid()
+        elif self.is_windows:
+            ret = self.run_cmd(None, cmd=['Get-CurrentGroupId'])
+            if ret['rc'] != 0:
+                msg = 'Failed to get gid!'
+                raise PtlUtilError(rc=1, rv=False, msg=msg)
+            else:
+                return int(ret['out'][0].strip())
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
+
+    def getpwall(self):
+        if self.is_linux:
+            import pwd
+            _users = pwd.getpwall()
+            users = []
+            for user in _users:
+                _user = PbsUser(name=user.pw_name, uid=user.pw_uid,
+                                gid=user.pw_gid, gecos=user.pw_gecos,
+                                homedir=user.pw_dir, shell=user.pw_shell,
+                                sid=None)
+                users.append(_user)
+            return users
+        elif self.is_windows:
+            ret = self.run_cmd(None, cmd=['Get-AllUser'])
+            if ret['rc'] != 0:
+                msg = 'Failed to get users!'
+                raise PtlUtilError(rc=1, rv=False, msg=msg)
+            _users = self.__parse_ps_ug(ret['out'])
+            users = []
+            for v in _users.values():
+                uid = v['sid'].split('-')[-1]
+                _user = PbsUser(name=v['name'], uid=uid, gid=v['gid'],
+                                gecos=v['gecos'], homedir=v['dir'],
+                                # TODO: find shell
+                                shell=None, sid=v['sid'])
+                users.append(_user)
+            return users
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
+
+    def getpwnam(self, name):
+        name = str(name)
+        if self.is_linux:
+            import pwd
+            user = pwd.getpwnam(name)
+            return PbsUser(name=user.pw_name, uid=user.pw_uid,
+                           gid=user.pw_gid, gecos=user.pw_gecos,
+                           homedir=user.pw_dir, shell=user.pw_shell,
+                           sid=None)
+        elif self.is_windows:
+            ret = self.run_cmd(None, cmd=['Get-UserByName', '-Name', name])
+            if ret['rc'] != 0:
+                msg = 'Failed to get user'
+                raise PtlUtilError(rc=1, rv=False, msg=msg)
+            _user = self.__parse_ps_ug(ret['out']).values()[0]
+            uid = _user['sid'].split('-')[-1]
+            return PbsUser(name=_user['name'], uid=uid, gid=_user['gid'],
+                           gecos=_user['gecos'], homedir=_user['dir'],
+                           # TODO: find shell
+                           shell=None, sid=_user['sid'])
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
+
+    def getpwuid(self, uid):
+        uid = int(uid)
+        if self.is_linux:
+            import pwd
+            user = pwd.getpwuid(uid)
+            return PbsUser(name=user.pw_name, uid=user.pw_uid,
+                           gid=user.pw_gid, gecos=user.pw_gecos,
+                           homedir=user.pw_dir, shell=user.pw_shell,
+                           sid=None)
+        elif self.is_windows:
+            ret = self.run_cmd(None, cmd=['Get-UserById', '-Id', str(uid)])
+            if ret['rc'] != 0:
+                msg = 'Failed to get user'
+                raise PtlUtilError(rc=1, rv=False, msg=msg)
+            _user = self.__parse_ps_ug(ret['out']).values()[0]
+            uid = _user['sid'].split('-')[-1]
+            return PbsUser(name=_user['name'], uid=uid, gid=_user['gid'],
+                           gecos=_user['gecos'], homedir=_user['dir'],
+                           # TODO: find shell
+                           shell=None, sid=_user['sid'])
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
+
+    def getgrall(self):
+        if self.is_linux:
+            import grp
+            _groups = grp.getgrall()
+            groups = []
+            for group in _groups:
+                _group = PbsGroup(name=group.gr_name, gid=group.gr_gid,
+                                  sid=None)
+                for mem in group.gr_mem:
+                    _mem = self.getpwnam(mem)
+                    _mem.pw_groups.append(_group)
+                    _group.gr_mem.append(_mem)
+                groups.append(_group)
+            return groups
+        elif self.is_windows:
+            ret = self.run_cmd(None, cmd=['Get-AllGroup'])
+            if ret['rc'] != 0:
+                msg = 'Failed to get groups'
+                raise PtlUtilError(rc=1, rv=False, msg=msg)
+            _groups = self.__parse_ps_ug(ret['out'])
+            groups = []
+            for v in _groups.values():
+                gid = v['sid'].split('-')[-1]
+                _group = PbsGroup(name=v['name'], gid=gid, sid=v['sid'])
+                members = v['mem']
+                if members == '__NONE__':
+                    members = []
+                else:
+                    members = members.split(',')
+                for mem in members:
+                    _mem = self.getpwnam(mem)
+                    _mem.pw_groups.append(_group)
+                    _group.gr_mem.append(_mem)
+                groups.append(_group)
+            return groups
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
+
+    def getgrgid(self, gid):
+        gid = int(gid)
+        if self.is_linux:
+            import grp
+            _group = grp.getgrgid(gid)
+            group = PbsGroup(name=_group.gr_name, gid=_group.gr_gid,
+                             sid=None)
+            for mem in _group.gr_mem:
+                _mem = self.getpwnam(mem)
+                _mem.pw_groups.append(group)
+                group.gr_mem.append(_mem)
+            return group
+        elif self.is_windows:
+            ret = self.run_cmd(None, cmd=['Get-GroupById', '-Id', str(gid)])
+            if ret['rc'] != 0:
+                msg = 'Failed to get group'
+                raise PtlUtilError(rc=1, rv=False, msg=msg)
+            _group = self.__parse_ps_ug(ret['out']).values()[0]
+            gid = _group['sid'].split('-')[-1]
+            group = PbsGroup(name=_group['name'], gid=gid, sid=_group['sid'])
+            members = _group['mem']
+            if members == '__NONE__':
+                members = []
+            else:
+                members = members.split(',')
+            for mem in members:
+                _mem = self.getpwnam(mem)
+                _mem.pw_groups.append(group)
+                group.gr_mem.append(_mem)
+            return group
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
+
+    def getgrnam(self, name):
+        name = str(name)
+        if self.is_linux:
+            import grp
+            _group = grp.getgrnam(name)
+            group = PbsGroup(name=_group.gr_name, gid=_group.gr_gid,
+                             sid=None)
+            for mem in _group.gr_mem:
+                _mem = self.getpwnam(mem)
+                _mem.pw_groups.append(group)
+                group.gr_mem.append(_mem)
+            return group
+        elif self.is_windows:
+            ret = self.run_cmd(None, cmd=['Get-GroupByName', '-Name', name])
+            if ret['rc'] != 0:
+                msg = 'Failed to get group'
+                raise PtlUtilError(rc=1, rv=False, msg=msg)
+            _group = self.__parse_ps_ug(ret['out']).values()[0]
+            gid = _group['sid'].split('-')[-1]
+            group = PbsGroup(name=_group['name'], gid=gid, sid=_group['sid'])
+            members = _group['mem']
+            if members == '__NONE__':
+                members = []
+            else:
+                members = members.split(',')
+            for mem in members:
+                _mem = self.getpwnam(mem)
+                _mem.pw_groups.append(group)
+                group.gr_mem.append(_mem)
+            return group
+        else:
+            raise PtlUtilError(rc=1, rv=False,
+                               msg='Unsupported platform detected!')
+
+    def is_privilege_user(self):
+        if self.is_linux:
+            return self.getuid() == 0
+        elif self.is_windows:
+            # TODO: Implement below?
+            return True

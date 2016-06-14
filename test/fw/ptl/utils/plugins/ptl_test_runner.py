@@ -43,7 +43,6 @@ import datetime
 import unittest
 import tempfile
 import platform
-import pwd
 import signal
 import ptl
 from traceback import format_exception
@@ -492,7 +491,7 @@ class PTLTestRunner(Plugin):
         _m = 'platform: ' + ' '.join(platform.uname()).strip()
         self.logger.info(_m)
         self.logger.info('python version: ' + str(platform.python_version()))
-        self.logger.info('user: ' + pwd.getpwuid(os.getuid())[0])
+        self.logger.info('user: ' + DshUtils().get_current_user())
         self.logger.info('-' * 80)
 
         if self.lcov_data is not None:

@@ -41,7 +41,6 @@ import sys
 import os
 import getopt
 import cPickle
-import pwd
 
 from ptl.lib.pbs_testlib import PtlConfig, Server
 from ptl.lib.pbs_testlib import PbsStatusError, PbsSubmitError, PbsDeleteError
@@ -50,6 +49,7 @@ from ptl.lib.pbs_testlib import PbsOrderError, PbsMessageError, PbsHoldError
 from ptl.lib.pbs_testlib import PbsReleaseError, PbsRunError, PbsRerunError
 from ptl.lib.pbs_testlib import PbsMoveError, PbsDeljobError, PbsDelresvError
 from ptl.lib.pbs_testlib import PbsQtermError
+from ptl.utils.pbs_dshutils import DshUtils
 
 
 def usage():
@@ -76,8 +76,10 @@ def _load_data(objfile=None, servername=None, user=None):
     else:
         _data = None
     if user is not None:
-        uid = pwd.getpwnam(user)[2]
-        if os.getuid() == 0 and uid != 0:
+        du = DshUtils()
+        uid = du.getpwnam(user)[2]
+        if du.is_privilege_user() and uid != du.getuid():
+            # TODO: Think about below
             os.setuid(uid)
     s = Server(servername, stat=False)
     return (s, _data)

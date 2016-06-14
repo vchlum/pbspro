@@ -278,7 +278,7 @@ if __name__ == '__main__':
 
     PtlConfig()
     du = DshUtils()
-    pbs_conf = du.parse_pbs_config(targethost, file=config)
+    pbs_conf = du.parse_pbs_config(targethost, path=config)
 
     os.chdir(workdir)
 

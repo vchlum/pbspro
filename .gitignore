@@ -36,7 +36,8 @@
 # Debug files
 *.dSYM/
 
-# Eclipse project files
+# project files
+.idea/
 .project
 .cproject
 .pydevproject

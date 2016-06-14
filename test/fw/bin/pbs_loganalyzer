@@ -45,6 +45,7 @@ import logging
 import logging.config
 import time
 import errno
+import json
 import ptl
 from ptl.utils.pbs_logutils import PBSLogUtils, PBSLogAnalyzer
 from ptl.utils.pbs_cliutils import CliUtils
@@ -309,7 +310,7 @@ if __name__ == '__main__':
     if json_on:
         if cyclesummary:
             info['scheduler'] = info['scheduler']['summary']
-        print CliUtils.__json__(info)
+        print json.dumps(info, sort_keys=True, indent=4)
         sys.exit(0)
 
     if acctlog:
