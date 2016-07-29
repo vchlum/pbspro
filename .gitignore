@@ -5,6 +5,11 @@
 *.elf
 *.slo
 
+# From Visual Studio
+*.suo
+*.ncb
+*.*proj*.user
+
 # Precompiled Headers
 *.gch
 *.pch
