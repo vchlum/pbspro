@@ -91,7 +91,7 @@ dosend(void *s, char *buf, int bufsize)
 		hPipe, // handle to pipe
 		buf, // buffer to write from
 		bufsize, // number of bytes to write
-		&bytes, // number of bytes written
+		(DWORD *)&bytes, // number of bytes written
 		NULL); // not overlapped I/O
 
 	if (!fSuccess || bufsize != bytes)
@@ -126,7 +126,7 @@ dorecv(void *s, char *buf, int bufsize)
 			hPipe, // handle to pipe
 			p, // buffer to receive data
 			remaining, // size of buffer
-			&bytes, // number of bytes read
+			(DWORD *)&bytes, // number of bytes read
 			NULL); // not overlapped I/O
 
 		if (!fSuccess && GetLastError() != ERROR_MORE_DATA)
@@ -293,7 +293,6 @@ HANDLE
 do_WaitNamedPipe(char *pipename, DWORD timeout, DWORD readwrite_accessflags)
 {
 	HANDLE hPipe = INVALID_HANDLE_VALUE;
-	int err = 0;
 	int i = 0;
 	int j = 0;
 	int retry = 10;
@@ -699,7 +698,7 @@ main(int argc, char *argv[])
 		perr_msg = "Option require!\n";
 		goto end;
 	}
-	if (!GetUserNameEx(NameSamCompatible, dn, &len)) {
+	if (!GetUserNameEx(NameSamCompatible, dn, (ULONG *)&len)) {
 		perr_msg = "Failed to find current username\n";
 		goto end;
 	}
