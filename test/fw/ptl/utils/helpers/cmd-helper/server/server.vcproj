@@ -204,6 +204,7 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
+				CommandLine="copy /Y $(TargetPath) /B $(SolutionDir)\build\$(TargetFileName)"
 			/>
 		</Configuration>
 	</Configurations>

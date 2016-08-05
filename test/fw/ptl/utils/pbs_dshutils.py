@@ -36,7 +36,6 @@
 # "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
 # trademark licensing policies.
 import platform
-from _json import make_encoder
 from subprocess import PIPE, Popen
 import os
 import sys
