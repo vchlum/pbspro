@@ -1,29 +1,29 @@
 /*
  * Copyright (C) 1994-2016 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
- *  
+ *
  * This file is part of the PBS Professional ("PBS Pro") software.
- * 
+ *
  * Open Source License Information:
- *  
+ *
  * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free 
- * Software Foundation, either version 3 of the License, or (at your option) any 
+ * terms of the GNU Affero General Public License as published by the Free
+ * Software Foundation, either version 3 of the License, or (at your option) any
  * later version.
- *  
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY 
+ *
+ * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
  * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
  * PARTICULAR PURPOSE.  See the GNU Affero General Public License for more details.
- *  
- * You should have received a copy of the GNU Affero General Public License along 
+ *
+ * You should have received a copy of the GNU Affero General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
- *  
- * Commercial License Information: 
- * 
- * The PBS Pro software is licensed under the terms of the GNU Affero General 
- * Public License agreement ("AGPL"), except where a separate commercial license 
+ *
+ * Commercial License Information:
+ *
+ * The PBS Pro software is licensed under the terms of the GNU Affero General
+ * Public License agreement ("AGPL"), except where a separate commercial license
  * agreement for PBS Pro version 14 or later has been executed in writing with Altair.
- *  
+ *
  * Altair’s dual-license business model allows companies, individuals, and
  * organizations to create proprietary derivative works of PBS Pro and distribute
  * them - whether embedded or bundled with other software - under a commercial
@@ -48,23 +48,37 @@
 #include <userenv.h>
 #include <winnt.h>
 #include <ntsecapi.h>
+#include <sddl.h>
 
 #pragma warning(disable:4996) /* disable CRT secure warning */
 
-#define PIPE_MAX_WAITTIME		60000
-#define INTERACT_STDOUT         "ptl_interact_stdout_"
-#define INTERACT_STDIN          "ptl_interact_stdin_"
-#define INTERACT_STDERR         "ptl_interact_stderr_"
-#define INTERACT_CMD			"ptl_interact_cmd"
+#define PIPE_MAX_WAITTIME 60000
+#define INTERACT_STDOUT "ptl_interact_stdout_"
+#define INTERACT_STDIN "ptl_interact_stdin_"
+#define INTERACT_STDERR "ptl_interact_stderr_"
+#define INTERACT_CMD "ptl_interact_cmd"
 #define READBUF_SIZE 8192 /* Size of pipe read buffer */
 #define CONSOLE_BUFSIZE 2048 /* Size of Console input buffer */
-#define PIPENAME_MAX_LENGTH     256 /* Maximum length of pipe name */
+#define PIPENAME_MAX_LENGTH 256 /* Maximum length of pipe name */
 #define CMDLINE_LENGTH 4096
 
 #ifndef HAVE_SNPRINTF
 #define HAVE_SNPRINTF 1
 #endif
 #define snprintf	_snprintf
+
+enum SPEC_COMMAND {
+	NO_COMMAND = 0,
+	GETUID,
+	GETALLUSER,
+	GETUSERBYID,
+	GETUSERBYNAME,
+	GETGID,
+	GETALLGROUP,
+	GETGROUPBYID,
+	GETGROUPBYNAME,
+	STOREUSERPASSWORD
+};
 
 /**
  * @brief
@@ -570,7 +584,7 @@ init_environ(char ***env_array, int *used, int *total)
 	int j = 50;
 
 	*used = 0;
-	*env_array = (char **)malloc(sizeof(char *)*j);
+	*env_array = (char **)calloc(1, sizeof(char *)*j);
 	if (*env_array == NULL)
 		return 1;
 	*total = j;
@@ -589,7 +603,7 @@ get_environ(char ***env_array, int *used)
 	for (i=0; i<*used; i++)
 		len += (strlen((*env_array)[i]) + 1);
 	len++;
-	envp = cp = (char *)malloc(len);
+	envp = cp = (char *)calloc(1, len);
 	if (cp == NULL) {
 		return NULL;
 	}
@@ -647,7 +661,7 @@ add_environ(char ***env_array, int *used, int *total, char *name, char *value)
 	amt = strlen(name) + 1;
 	if (value)
 		amt += strlen(value) + 1;
-	env = (char *)malloc(amt);
+	env = (char *)calloc(1, amt);
 	if (env == NULL) {
 		return 1;
 	}
@@ -669,6 +683,478 @@ add_environ(char ***env_array, int *used, int *total, char *name, char *value)
 	return 0;
 }
 
+void
+get_user_password(char *key, char **password)
+{
+	CREDENTIAL *cred = NULL;
+
+	if (CredRead(key, 1, 0, &cred)) {
+		*password = (char *)calloc(1, cred->CredentialBlobSize+1);
+		memcpy(*password, cred->CredentialBlob, cred->CredentialBlobSize+1);
+		CredFree(&cred);
+		memset(cred, 0, sizeof(CREDENTIAL));
+	}
+}
+
+wchar_t *
+get_domainname(int want_dns, char *dname)
+{
+	char *domain = NULL;
+	static wchar_t domainw[DNLEN+1] = {'\0'};
+	char *envvar = NULL;
+
+	if (want_dns) {
+		envvar = "USERDNSDOMAIN";
+	} else {
+		envvar = "USERDOMAIN";
+	}
+	domain = getenv(envvar);
+	if (domain == NULL)
+		return NULL;
+	if (dname != NULL)
+		strncpy(dname, domain, strlen(domain));
+	mbstowcs(domainw, domain, sizeof(domainw));
+	return domainw;
+}
+
+int
+store_user_password(char *username, char *password)
+{
+	CREDENTIAL *cred = NULL;
+	int ret = 0;
+
+	if ((cred = (CREDENTIAL *)calloc(1, sizeof(CREDENTIAL))) == NULL) {
+		goto store_user_password_end;
+	}
+	cred->Type = CRED_TYPE_GENERIC;
+	cred->Persist = CRED_PERSIST_ENTERPRISE;
+	if ((cred->UserName = strdup(username)) == NULL) {
+		goto store_user_password_end;
+	}
+	if ((cred->CredentialBlob = strdup(password)) == NULL) {
+		goto store_user_password_end;
+	}
+	cred->CredentialBlobSize = strlen(password);
+	if ((cred->TargetName = strdup(username)) == NULL) {
+		goto store_user_password_end;
+	}
+	if (!CredWrite(cred, 0))
+		goto store_user_password_end;
+	ret = 1;
+store_user_password_end:
+	if (cred != NULL) {
+		if (cred->CredentialBlob != NULL) {
+			memset(cred->CredentialBlob, 0, strlen(cred->CredentialBlob));
+			free(cred->CredentialBlob);
+		}
+		if (cred->TargetName != NULL) {
+			free(cred->TargetName);
+		}
+		if (cred->UserName != NULL) {
+			free(cred->UserName);
+		}
+		CredFree(&cred);
+		memset(cred, 0, sizeof(CREDENTIAL));
+	}
+	return ret;
+}
+
+void getuid(void)
+{
+	SID *user_sid = NULL;
+	DWORD sid_sz = 0;
+	HANDLE hToken = INVALID_HANDLE_VALUE;
+	DWORD dwBufferSize = 0;
+	PTOKEN_USER pTokenUser = NULL;
+	char *string_sid = NULL;
+
+	if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+		exit(1);
+	}
+	GetTokenInformation(hToken, TokenUser, NULL, 0, &dwBufferSize);
+	if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+		pTokenUser = (PTOKEN_USER)calloc(1, dwBufferSize);
+		if (pTokenUser == NULL) {
+			CloseHandle(hToken);
+			exit(1);
+		}
+	} else {
+		CloseHandle(hToken);
+		exit(1);
+	}
+	if (!GetTokenInformation(hToken, TokenUser, pTokenUser, dwBufferSize, &dwBufferSize)) {
+		CloseHandle(hToken);
+		free(pTokenUser);
+		exit(1);
+	}
+	if (!IsValidSid(pTokenUser->User.Sid)) {
+		CloseHandle(hToken);
+		free(pTokenUser);
+		exit(1);
+	}
+	ConvertSidToStringSid(pTokenUser->User.Sid, &string_sid);
+	free(pTokenUser->User.Sid);
+	printf("%s\n", strrchr(string_sid, '-')+1);
+	LocalFree(string_sid);
+	exit(0);
+}
+
+void
+get_group_info(char *group, char *gid)
+{
+	GROUP_INFO_0 *pBuf = NULL;
+	GROUP_INFO_0 *pTmpBuf = NULL;
+	DWORD dwEntriesRead = 0;
+	DWORD dwTotalEntries = 0;
+	DWORD dwResumeHandle = 0;
+	DWORD i;
+	NET_API_STATUS nStatus;
+	wchar_t *dnsdomain = get_domainname(1, NULL);
+	char dnsdomainA[DNLEN+1] = {'\0'};
+
+	get_domainname(1, dnsdomainA);
+
+	do {
+		nStatus = NetGroupEnum(dnsdomain,
+								0,
+								(LPBYTE *)&pBuf,
+								MAX_PREFERRED_LENGTH,
+								&dwEntriesRead,
+								&dwTotalEntries,
+								&dwResumeHandle);
+		if ((nStatus == NERR_Success) || (nStatus == ERROR_MORE_DATA)) {
+			if ((pTmpBuf = pBuf) != NULL) {
+				for (i = 0; (i < dwEntriesRead); i++) {
+					PSID gsid = NULL;
+					DWORD gsid_sz = 0;
+					char groupname[GNLEN+1] = {'\0'};
+					char domain[DNLEN+1] = {'\0'};
+					DWORD domain_sz = DNLEN;
+					SID_NAME_USE type = 0;
+					char *string_gsid = NULL;
+					NET_API_STATUS nStatus1;
+					DWORD entriesread = 0;
+					DWORD totalentries = 0;
+					DWORD resumehandle = 0;
+					GROUP_USERS_INFO_0 *buff = NULL;
+					GROUP_USERS_INFO_0 *tmp_buff = NULL;
+					char *members = NULL;
+
+					wcstombs(groupname, pTmpBuf->grpi0_name, sizeof(groupname));
+					LookupAccountName(dnsdomainA, groupname, gsid, &gsid_sz, domain, &domain_sz, &type);
+					if (gsid_sz <= 0)
+						goto get_group_info_loop_end;
+					if ((gsid = malloc(gsid_sz)) == NULL) {
+						goto get_group_info_loop_end;
+					}
+					if (LookupAccountName(dnsdomainA, groupname, gsid, &gsid_sz, domain, &domain_sz, &type) == 0) {
+						goto get_group_info_loop_end;
+					}
+					if (type != SidTypeGroup && type != SidTypeWellKnownGroup)
+						goto get_group_info_loop_end;
+					if (!ConvertSidToStringSid(gsid, &string_gsid))
+						goto get_group_info_loop_end;
+					if (group != NULL) {
+						if (strchr(group, (int)'\\') != NULL) {
+							char fqdn[GNLEN+DNLEN+1] = {'\0'};
+							snprintf(fqdn, sizeof(fqdn)-1, "%s\\%s", domain, groupname);
+							if (stricmp(group, fqdn)) {
+								goto get_group_info_loop_end;
+							}
+						} else {
+							if (stricmp(group, groupname)) {
+								goto get_group_info_loop_end;
+							}
+						}
+					} else if (gid != NULL) {
+						if (strcmp(gid, strrchr(string_gsid, (int)'-')+1)) {
+							goto get_group_info_loop_end;
+						}
+					}
+					do {
+						nStatus1 = NetGroupGetUsers(dnsdomain,
+													pTmpBuf->grpi0_name,
+													0, (LPBYTE *)&buff,
+													MAX_PREFERRED_LENGTH,
+													&entriesread,
+													&totalentries,
+													&resumehandle);
+						if ((nStatus1 == NERR_Success) || (nStatus1 == ERROR_MORE_DATA)) {
+							if (totalentries > 0) {
+								if (members == NULL) {
+									members = (char *)calloc(1, totalentries*(DNLEN+UNLEN+1));
+									if (members == NULL)
+										goto get_group_info_loop_end;
+								}
+							}
+							if ((tmp_buff = buff) != NULL) {
+								DWORD j = 0;
+								for (j = 0; (j < entriesread); j++) {
+									char username[UNLEN+1] = {'\0'};
+
+									wcstombs(username, tmp_buff->grui0_name, sizeof(username));
+									strncat(members, ",", 1);
+									strncat(members, domain, sizeof(domain)-1);
+									strncat(members, "\\", 1);
+									strncat(members, username, sizeof(username)-1);
+									tmp_buff++;
+								}
+							}
+						} else {
+							fprintf(stderr, "A system error has occurred: %d\n", nStatus);
+							exit(1);
+						}
+						if (buff != NULL) {
+							NetApiBufferFree(buff);
+							buff = NULL;
+						}
+					} while (nStatus1 == ERROR_MORE_DATA);
+					printf("%s\n", groupname);
+					printf("\tname = %s\\%s\n", domain, groupname);
+					printf("\tsid = %s\n", string_gsid);
+					if (members != NULL) {
+						printf("\tmem = %s\n", &members[1]);
+					} else {
+						printf("\tmem = __NONE__\n");
+					}
+get_group_info_loop_end:
+					if (gsid != NULL) {
+						free(gsid);
+					}
+					if (string_gsid != NULL) {
+						LocalFree(string_gsid);
+					}
+					if (buff != NULL) {
+						NetApiBufferFree(buff);
+					}
+					if (members != NULL) {
+						free(members);
+					}
+					pTmpBuf++;
+				}
+			}
+		} else {
+			fprintf(stderr, "A system error has occurred: %d\n", nStatus);
+			exit(1);
+		}
+		if (pBuf != NULL) {
+			NetApiBufferFree(pBuf);
+			pBuf = NULL;
+		}
+	} while (nStatus == ERROR_MORE_DATA);
+	if (pBuf != NULL)
+		NetApiBufferFree(pBuf);
+	exit(0);
+}
+
+void
+get_user_info(char *user, char *uid)
+{
+	LPUSER_INFO_0 pBuf = NULL;
+	LPUSER_INFO_0 pTmpBuf = NULL;
+	DWORD dwEntriesRead = 0;
+	DWORD dwTotalEntries = 0;
+	DWORD dwResumeHandle = 0;
+	DWORD i;
+	NET_API_STATUS nStatus;
+	char domain[DNLEN+1] = {'\0'};
+
+	do {
+		nStatus = NetUserEnum(get_domainname(1, NULL),
+								0,
+								FILTER_NORMAL_ACCOUNT,
+								(LPBYTE *)&pBuf,
+								MAX_PREFERRED_LENGTH,
+								&dwEntriesRead,
+								&dwTotalEntries,
+								&dwResumeHandle);
+		if ((nStatus == NERR_Success) || (nStatus == ERROR_MORE_DATA)) {
+			if ((pTmpBuf = pBuf) != NULL) {
+				for (i = 0; (i < dwEntriesRead); i++) {
+					char username[UNLEN+1] = {'\0'};
+					char fqdn[UNLEN+DNLEN+1] = {'\0'};
+					char *string_usid = NULL;
+					char *string_gsid = NULL;
+					char *password = NULL;
+					PROFILEINFO profileinfo;
+					HANDLE hToken = INVALID_HANDLE_VALUE;
+					char cwd[MAX_PATH+1] = {'\0'};
+					DWORD cwd_len = MAX_PATH;
+					DWORD dwBufferSize = 0;
+					PTOKEN_GROUPS pTokenGroups = NULL;
+					PTOKEN_USER pTokenUser = NULL;
+
+					if (domain[0] == '\0')
+						get_domainname(0, domain);
+					memset(&profileinfo, 0, sizeof(PROFILEINFO));
+					profileinfo.hProfile = INVALID_HANDLE_VALUE;
+					wcstombs(username, pTmpBuf->usri0_name, sizeof(username));
+					snprintf(fqdn, sizeof(fqdn)-1, "%s\\%s", domain, username);
+					if (user != NULL) {
+						if (strchr(user, (int)'\\') != NULL) {
+							if (stricmp(user, fqdn)) {
+								goto get_user_info_loop_end;
+							}
+						} else {
+							if (stricmp(user, username)) {
+								goto get_user_info_loop_end;
+							}
+						}
+					}
+					get_user_password(fqdn, &password);
+					if (password == NULL) {
+						goto get_user_info_loop_end;
+					}
+					if (LogonUser(username, domain, password, LOGON32_LOGON_BATCH, LOGON32_PROVIDER_DEFAULT, &hToken) == 0) {
+						if (LogonUser(username, domain, password, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, &hToken) == 0) {
+							goto get_user_info_loop_end;
+						}
+					}
+					profileinfo.dwSize = sizeof(PROFILEINFO);
+					profileinfo.lpUserName = username;
+					if (!LoadUserProfile(hToken, &profileinfo)) {
+						goto get_user_info_loop_end;
+					}
+					if (!GetUserProfileDirectory(hToken, &cwd[0], &cwd_len)) {
+						goto get_user_info_loop_end;
+					}
+					GetTokenInformation(hToken, TokenUser, NULL, 0, &dwBufferSize);
+					if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+						pTokenUser = (PTOKEN_USER)calloc(1, dwBufferSize);
+						if (pTokenUser == NULL) {
+							goto get_user_info_loop_end;
+						}
+					} else {
+						goto get_user_info_loop_end;
+					}
+					if (!GetTokenInformation(hToken, TokenUser, pTokenUser, dwBufferSize, &dwBufferSize)) {
+						goto get_user_info_loop_end;
+					}
+					if (!IsValidSid(pTokenUser->User.Sid)) {
+						goto get_user_info_loop_end;
+					}
+					if (!ConvertSidToStringSid(pTokenUser->User.Sid, &string_usid))
+						goto get_user_info_loop_end;
+					if (uid != NULL) {
+						if (strcmp(uid, strrchr(string_usid, '-')+1)) {
+							goto get_user_info_loop_end;
+						}
+					}
+					dwBufferSize = 0;
+					GetTokenInformation(hToken, TokenGroups, NULL, 0, &dwBufferSize);
+					if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+						pTokenGroups = (PTOKEN_GROUPS)calloc(1, dwBufferSize);
+						if (pTokenGroups == NULL) {
+							goto get_user_info_loop_end;
+						}
+					} else {
+						goto get_user_info_loop_end;
+					}
+					if (!GetTokenInformation(hToken, TokenGroups, pTokenGroups, dwBufferSize, &dwBufferSize)) {
+						goto get_user_info_loop_end;
+					}
+					if (pTokenGroups->GroupCount <= 0)
+						goto get_user_info_loop_end;
+					if (!IsValidSid(pTokenGroups->Groups[0].Sid)) {
+						goto get_user_info_loop_end;
+					}
+					if (!ConvertSidToStringSid(pTokenGroups->Groups[0].Sid, &string_gsid))
+						goto get_user_info_loop_end;
+					printf("%s\n", username);
+					printf("\tname = %s\n", username);
+					printf("\tgecos = %s\n", fqdn);
+					printf("\tsid = %s\n", string_usid);
+					printf("\tgid = %s\n", strrchr(string_gsid, '-')+1);
+					printf("\tdir = %s\n", cwd);
+get_user_info_loop_end:
+					if (pTokenUser != NULL) {
+						if (IsValidSid(pTokenUser->User.Sid))
+							LocalFree(pTokenUser->User.Sid);
+						free(pTokenUser);
+					}
+					if (pTokenGroups != NULL) {
+						DWORD i = 0;
+						for (i=0; i<=pTokenGroups->GroupCount; i++) {
+							LocalFree(pTokenGroups->Groups[i].Sid);
+						}
+						free(pTokenGroups);
+					}
+					if (string_usid != NULL)
+						LocalFree(string_usid);
+					if (string_gsid != NULL)
+						LocalFree(string_gsid);
+					if (password != NULL) {
+						memset(password, 0, strlen(password));
+						free(password);
+						password = NULL;
+					}
+					if (profileinfo.hProfile != INVALID_HANDLE_VALUE)
+						UnloadUserProfile(hToken, profileinfo.hProfile);
+					if (hToken != INVALID_HANDLE_VALUE) {
+						close_valid_handle(&(hToken));
+					}
+					pTmpBuf++;
+				}
+			}
+		} else {
+			fprintf(stderr, "A system error has occurred: %d\n", nStatus);
+			exit(1);
+		}
+		if (pBuf != NULL) {
+			NetApiBufferFree(pBuf);
+			pBuf = NULL;
+		}
+	} while (nStatus == ERROR_MORE_DATA);
+	if (pBuf != NULL)
+		NetApiBufferFree(pBuf);
+	exit(0);
+}
+
+void getgid(void)
+{
+	SID *user_sid = NULL;
+	DWORD sid_sz = 0;
+	HANDLE hToken = INVALID_HANDLE_VALUE;
+	DWORD dwBufferSize = 0;
+	PTOKEN_GROUPS pTokenGroups = NULL;
+	char *string_sid = NULL;
+
+	if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+		exit(1);
+	}
+	GetTokenInformation(hToken, TokenGroups, NULL, 0, &dwBufferSize);
+	if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+		pTokenGroups = (PTOKEN_GROUPS)calloc(1, dwBufferSize);
+		if (pTokenGroups == NULL) {
+			CloseHandle(hToken);
+			exit(1);
+		}
+	} else {
+		CloseHandle(hToken);
+		exit(1);
+	}
+	if (!GetTokenInformation(hToken, TokenGroups, pTokenGroups, dwBufferSize, &dwBufferSize)) {
+		CloseHandle(hToken);
+		free(pTokenGroups);
+		exit(1);
+	}
+	if (pTokenGroups->GroupCount <= 0)
+		exit(1);
+	if (!IsValidSid(pTokenGroups->Groups[0].Sid)) {
+		CloseHandle(hToken);
+		free(pTokenGroups);
+		exit(1);
+	}
+	ConvertSidToStringSid(pTokenGroups->Groups[0].Sid, &string_sid);
+	for (dwBufferSize=0; dwBufferSize<=pTokenGroups->GroupCount; dwBufferSize++) {
+		LocalFree(pTokenGroups->Groups[dwBufferSize].Sid);
+	}
+	free(pTokenGroups);
+	printf("%s\n", strrchr(string_sid, '-')+1);
+	LocalFree(string_sid);
+	exit(0);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -683,9 +1169,7 @@ main(int argc, char *argv[])
 	char dn[DNLEN+UNLEN+1] = {'\0'};
 	char username[UNLEN+1] = {'\0'};
 	char domain[DNLEN+1] = {'\0'};
-	CREDENTIAL *cred = NULL;
 	char *password = NULL;
-	int password_len = 0;
 	char *p = NULL;
 	int i = 1;
 	char cwd[MAX_PATH+1] = {'\0'};
@@ -693,6 +1177,7 @@ main(int argc, char *argv[])
 	int env_used_size = 0;
 	int env_total_size = 0;
 	int exit_code = 1;
+	enum SPEC_COMMAND spec_command = NO_COMMAND;
 
 	if (argc <= 1) {
 		perr_msg = "Option require!\n";
@@ -719,19 +1204,82 @@ main(int argc, char *argv[])
 			i += 2;
 		} else if (!strncmp(argv[i], "-p", 2) || !strncmp(argv[i], "--password", 6)) {
 			password = strdup(argv[i+1]);
-			i += 2; 
+			i += 2;
 	    } else if (!strncmp(argv[i], "-h", 2) || !strncmp(argv[i], "--host", 6)) {
 			strncpy(remote_hostname, argv[i+1], sizeof(remote_hostname)-1);
-			i += 2; 
+			i += 2;
 		} else if (!strncmp(argv[i], "-c", 2) || !strncmp(argv[i], "--cwd", 6)) {
 			strncpy(cwd, argv[i+1], sizeof(cwd)-1);
-			i += 2; 
+			i += 2;
 		} else if (!strncmp(argv[i], "-e", 2) || !strncmp(argv[i], "--env", 6)) {
 			if (env_array == NULL) {
 				init_environ(&env_array, &env_used_size, &env_total_size);
 			}
 			add_environ(&env_array, &env_used_size, &env_total_size, argv[i+1], NULL);
 			i += 2;
+		} else if (!strcmp(argv[i], "--getuid")) {
+			if (spec_command != NO_COMMAND) {
+				fprintf(stderr, "Only one special command allowed\n");
+				exit(1);
+			}
+			spec_command = GETUID;
+			i += 1;
+		} else if (!strcmp(argv[i], "--getgid")) {
+			if (spec_command != NO_COMMAND) {
+				fprintf(stderr, "Only one special command allowed\n");
+				exit(1);
+			}
+			spec_command = GETGID;
+			i += 1;
+		} else if (!strcmp(argv[i], "--getalluser")) {
+			if (spec_command != NO_COMMAND) {
+				fprintf(stderr, "Only one special command allowed\n");
+				exit(1);
+			}
+			spec_command = GETALLUSER;
+			i += 1;
+		} else if (!strcmp(argv[i], "--getuserbyid")) {
+			if (spec_command != NO_COMMAND) {
+				fprintf(stderr, "Only one special command allowed\n");
+				exit(1);
+			}
+			spec_command = GETUSERBYID;
+			i += 1;
+		} else if (!strcmp(argv[i], "--getuserbyname")) {
+			if (spec_command != NO_COMMAND) {
+				fprintf(stderr, "Only one special command allowed\n");
+				exit(1);
+			}
+			spec_command = GETUSERBYNAME;
+			i += 1;
+		} else if (!strcmp(argv[i], "--getallgroup")) {
+			if (spec_command != NO_COMMAND) {
+				fprintf(stderr, "Only one special command allowed\n");
+				exit(1);
+			}
+			spec_command = GETALLGROUP;
+			i += 1;
+		} else if (!strcmp(argv[i], "--getgroupbyid")) {
+			if (spec_command != NO_COMMAND) {
+				fprintf(stderr, "Only one special command allowed\n");
+				exit(1);
+			}
+			spec_command = GETGROUPBYID;
+			i += 1;
+		} else if (!strcmp(argv[i], "--getgroupbyname")) {
+			if (spec_command != NO_COMMAND) {
+				fprintf(stderr, "Only one special command allowed\n");
+				exit(1);
+			}
+			spec_command = GETGROUPBYNAME;
+			i += 1;
+		} else if (!strcmp(argv[i], "--storepass")) {
+			if (spec_command != NO_COMMAND) {
+				fprintf(stderr, "Only one special command allowed\n");
+				exit(1);
+			}
+			spec_command = STOREUSERPASSWORD;
+			i += 1;
 	    } else if (!strncmp(argv[i], "--", 2)) {
 			i++;
 			break;
@@ -740,7 +1288,7 @@ main(int argc, char *argv[])
 		}
 	}
 	len = argc - i;
-	if (len == 0) {
+	if (len == 0 && spec_command == NO_COMMAND) {
 		perr_msg = "No command specified!\n";
 		goto end;
 	}
@@ -755,19 +1303,51 @@ main(int argc, char *argv[])
 		snprintf(dn, sizeof(dn)-1, "%s\\%s", domain, username);
 	}
 
+	if (spec_command != NO_COMMAND) {
+		switch (spec_command) {
+			case GETUID:
+				getuid();
+				break;
+			case GETGID:
+				getgid();
+				break;
+			case GETALLUSER:
+				get_user_info(NULL, NULL);
+				break;
+			case GETUSERBYNAME:
+				get_user_info(dn, NULL);
+				break;
+			case GETUSERBYID:
+				get_user_info(NULL, username);
+				break;
+			case GETALLGROUP:
+				get_group_info(NULL, NULL);
+				break;
+			case GETGROUPBYNAME:
+				get_group_info(dn, NULL);
+				break;
+			case GETGROUPBYID:
+				get_group_info(NULL, username);
+				break;
+			case STOREUSERPASSWORD:
+				if (password == NULL) {
+					fprintf(stderr, "No password specified!\n");
+					exit(1);
+				} else {
+					exit(store_user_password(dn, password));
+				}
+			default:
+				fprintf(stderr, "Unknown special command\n");
+				exit(1);
+		}
+	}
+
 	if (password == NULL) {
-		if (!CredRead(dn, 1, 0, &cred)) {
+		get_user_password(dn, &password);
+		if (password == NULL) {
 			perr_msg = "Failed to find user's password\n";
 			goto end;
 		}
-
-		password_len = cred->CredentialBlobSize;
-		password = (char *)malloc(password_len);
-		memset(password, 0, password_len);
-		wcstombs(password, (const wchar_t *)cred->CredentialBlob, password_len);
-		password[password_len-1] = '\0';
-		CredFree(&cred);
-		memset(cred, 0, sizeof(CREDENTIAL));
 	}
 
 	if (cwd[0] == '\0') {
@@ -808,7 +1388,7 @@ main(int argc, char *argv[])
 		perr_msg = "failed to send domain to remote server\n";
 		goto end;
 	}
-	memset(password, 0, password_len);
+	memset(password, 0, strlen(password));
 	if (send_string(hCmdPipe, (char *)&len) == -1) {
 		perr_msg = "failed to send cmdline len to remote server\n";
 		goto end;
@@ -856,11 +1436,10 @@ main(int argc, char *argv[])
 		goto end;
 	}
 end:
-	CredFree(&cred);
-	if (cred != NULL) {
-		memset(cred, 0, sizeof(CREDENTIAL));
+	if (password != NULL) {
+		memset(password, 0, strlen(password));
+		free(password);
 	}
-	memset(password, 0, password_len);
 	if (env_array != NULL) {
 		free_environ(&env_array, &env_used_size);
 	}
