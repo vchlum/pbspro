@@ -1775,7 +1775,6 @@ try_db_again:
 	}
 #else
 	pbs_close_stdfiles();
-	sid = getpid();
 #endif	/* end the ifndef WIN32 */
 
 	/* Protect from being killed by kernel */
