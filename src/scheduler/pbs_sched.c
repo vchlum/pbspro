@@ -93,6 +93,7 @@
 #include <sys/select.h>
 #endif
 #include <sys/resource.h>
+#include <assert.h>
 
 #include	"pbs_version.h"
 #include	"portability.h"
@@ -125,6 +126,9 @@ int		numclients = 0;		/* the number of clients */
 char		*configfile = NULL;	/* name of file containing
 						 client names to be added */
 
+extern int		lockfds;
+extern int		already_forked;
+extern pid_t go_to_background();
 extern char		*msg_daemonname;
 char		**glob_argv;
 char		usage[] =
@@ -149,6 +153,95 @@ extern int do_hard_cycle_interrupt;
 static int	engage_authentication(struct connect_handle *);
 
 extern char *msg_startup1;
+
+static void   lock_out(int, int);
+int lockfds = -1;
+int already_forked = 0;
+
+/**
+ * @brief
+ * 		pbs_close_stdfiles - redirect stdin, stdout and stderr to /dev/null
+ *		Not done if compiled with debug
+ *
+ * @par MT-safe: No
+ */
+void
+pbs_close_stdfiles(void)
+{
+	static int already_done = 0;
+	FILE *dummyfile;
+#ifdef WIN32
+#define NULL_DEVICE "nul"
+#else
+#define NULL_DEVICE "/dev/null"
+#ifdef DEBUG
+	char console_file_path[MAXPATHLEN+1] = {0};
+#endif
+#endif
+
+	if (!already_done) {
+		(void)fclose(stdin);
+
+		dummyfile = fopen(NULL_DEVICE, "r");
+		assert((dummyfile != 0) && (fileno(dummyfile) == 0));
+#ifndef DEBUG
+		(void)fclose(stdout);
+		(void)fclose(stderr);
+		dummyfile = fopen(NULL_DEVICE, "w");
+		assert((dummyfile != 0) && (fileno(dummyfile) == 1));
+		dummyfile = fopen(NULL_DEVICE, "w");
+		assert((dummyfile != 0) && (fileno(dummyfile) == 2));
+#else
+		/* In debug mode redirect stdout and stderr in files */
+		(void)sprintf(console_file_path, "%s/%s", path_log, "console_out_err");
+		(void)unlink(console_file_path);
+		freopen(console_file_path, "w", stdout);
+		dup2(fileno(stdout), fileno(stderr));
+#endif
+		(void)setvbuf(stdout, NULL, _IONBF, 0);
+		(void)setvbuf(stderr, NULL, _IONBF, 0);
+		already_done = 1;
+	}
+}
+
+#ifndef WIN32
+/**
+ * @brief
+ *		Forks a background process and continues on that, while
+ * 		exiting the foreground process. It also sets the child process to
+ * 		become the session leader. This function is avaible only on Non-Windows
+ * 		platforms and in non-debug mode.
+ *
+ * @return	pid_t	- sid of the child process (result of setsid)
+ * @retval       >0	- sid of the child process.
+ * @retval       -1	- Fork or setsid failed.
+ */
+pid_t
+go_to_background()
+{
+	pid_t	sid = -1;
+	int	rc;
+
+	lock_out(lockfds, F_UNLCK);
+	rc = fork();
+	if (rc == -1) { /* fork failed */
+		log_err(errno, msg_daemonname, "fork failed");
+		return ((pid_t) -1);
+	}
+	if (rc > 0)
+		exit(0); /* parent goes away, allowing booting to continue */
+
+	lock_out(lockfds, F_WRLCK);
+	if ((sid = setsid()) == -1) {
+		log_err(errno, msg_daemonname, "setsid failed");
+		return ((pid_t) -1);
+	}
+	pbs_close_stdfiles();
+	already_forked = 1;
+	return sid;
+}
+#endif	/* end the ifndef WIN32 */
+
 /**
  * @brief
  * 		cleanup after a segv and re-exec.  Trust as little global mem
@@ -717,27 +810,6 @@ engage_authentication(struct connect_handle *phandle)
 
 /**
  * @brief
- * 		sends scheduler object attributes to pbs_server
- *	  	What we send: who we are (ATTR_SchedHost), our version (ATTR_version),
- *			The alarm cmd line -a value (ATTR_sched_cycle_len)
- * @par
- *	  When do we send the attributes:
- *			The first call to this function after scheduler restart
- *			First cycle after any server restart(SCH_SCHEDULE_FIRST)
- *
- *
- * @param	cmd[in]	-	scheduling command from the server -- see sched_cmds.h
- * @param	alarm[in]	-	alarm value (cmd line option -a) set if > 0
- *
- * @par Side-Effects: none
- *
- * @par	MT-Unsafe
- *
- * @return	void
- */
-
-/**
- * @brief
  * 		lock_out - lock out other daemons from this directory.
  *
  * @param[in]	fds	-	file descriptor
@@ -871,7 +943,6 @@ int
 main(int argc, char *argv[])
 {
 	int		go, c, rc, errflg = 0;
-	int		lockfds;
 	int		t = 1;
 	pid_t		pid;
 	char		host[PBS_MAXHOSTNAME+1];
@@ -1259,37 +1330,18 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-#ifndef	DEBUG
-	if (stalone != 1) {
-		if ((pid = fork()) == -1) {     /* error on fork */
-			perror("fork");
-			exit(1);
-		}
-		else if (pid > 0)               /* parent exits */
-			exit(0);
-
-		if (setsid() == -1) {
-			perror("setsid");
-			exit(1);
+	/* go into the background and become own session/process group */
+#ifndef WIN32
+	if (stalone == 0 && already_forked == 0) {
+		if ((pid = go_to_background()) == -1) {
+			return (2);
 		}
 	}
-	lock_out(lockfds, F_WRLCK);
-	freopen(dbfile, "a", stdout);
-	setvbuf(stdout, NULL, _IOLBF, 0);
-	dup2(fileno(stdout), fileno(stderr));
 #else
-	if (stalone != 1) {
-		(void) sprintf(log_buffer, "Debug build does not fork.");
-		log_record(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_INFO,
-				__func__, log_buffer);
-	}
-	lock_out(lockfds, F_WRLCK);
-	setvbuf(stdout, NULL, _IOLBF, 0);
-	setvbuf(stderr, NULL, _IOLBF, 0);
-#endif
+	pbs_close_stdfiles();
 	pid = getpid();
+#endif	/* end the ifndef WIN32 */
 	daemon_protect(0, PBS_DAEMON_PROTECT_ON);
-	freopen("/dev/null", "r", stdin);
 
 	/* write schedulers pid into lockfile */
 #ifdef WIN32

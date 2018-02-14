@@ -191,7 +191,6 @@ int		alien_kill = 0;			/* kill alien procs */
 #if	defined(MOM_CPUSET) && (CPUSET_VERSION >= 4)
 char		*cpuset_error_action = "offline";
 #endif	/* MOM_CPUSET && CPUSET_VERSION >= 4 */
-int		lockfds;
 float		max_load_val   = -1.0;
 int		max_poll_downtime_val = PBS_MAX_POLL_DOWNTIME;
 char	       *mom_domain;
@@ -660,6 +659,10 @@ extern	void	cleanup_hooks_workdir(struct work_task *);
 
 static char *mk_dirs(char *);
 static void check_busy(double);
+
+extern int		lockfds;
+extern int		already_forked;
+extern pid_t go_to_background();
 
 /**
  * @brief
@@ -2467,6 +2470,94 @@ int	cpuaverage	     = 0;	/* 1 or 0		*/
 int	enforce_mem	     = 0;	/* on, value ignored	*/
 /* complexmem	*/
 int	complex_mem_calc     = 0;	/* 1 or 0		*/
+
+static void   mom_lock(int, int);
+int lockfds = -1;
+int already_forked = 0;
+
+/**
+ * @brief
+ * 		pbs_close_stdfiles - redirect stdin, stdout and stderr to /dev/null
+ *		Not done if compiled with debug
+ *
+ * @par MT-safe: No
+ */
+void
+pbs_close_stdfiles(void)
+{
+	static int already_done = 0;
+	FILE *dummyfile;
+#ifdef WIN32
+#define NULL_DEVICE "nul"
+#else
+#define NULL_DEVICE "/dev/null"
+#ifdef DEBUG
+	char console_file_path[MAXPATHLEN+1] = {0};
+#endif
+#endif
+
+	if (!already_done) {
+		(void)fclose(stdin);
+
+		dummyfile = fopen(NULL_DEVICE, "r");
+		assert((dummyfile != 0) && (fileno(dummyfile) == 0));
+#ifndef DEBUG
+		(void)fclose(stdout);
+		(void)fclose(stderr);
+		dummyfile = fopen(NULL_DEVICE, "w");
+		assert((dummyfile != 0) && (fileno(dummyfile) == 1));
+		dummyfile = fopen(NULL_DEVICE, "w");
+		assert((dummyfile != 0) && (fileno(dummyfile) == 2));
+#else
+		/* In debug mode redirect stdout and stderr in files */
+		(void)sprintf(console_file_path, "%s/%s", path_log, "console_out_err");
+		(void)unlink(console_file_path);
+		freopen(console_file_path, "w", stdout);
+		dup2(fileno(stdout), fileno(stderr));
+#endif
+		(void)setvbuf(stdout, NULL, _IONBF, 0);
+		(void)setvbuf(stderr, NULL, _IONBF, 0);
+		already_done = 1;
+	}
+}
+
+#ifndef WIN32
+/**
+ * @brief
+ *		Forks a background process and continues on that, while
+ * 		exiting the foreground process. It also sets the child process to
+ * 		become the session leader. This function is avaible only on Non-Windows
+ * 		platforms and in non-debug mode.
+ *
+ * @return	pid_t	- sid of the child process (result of setsid)
+ * @retval       >0	- sid of the child process.
+ * @retval       -1	- Fork or setsid failed.
+ */
+pid_t
+go_to_background()
+{
+	pid_t	sid = -1;
+	int	rc;
+
+	mom_lock(lockfds, F_UNLCK);
+	rc = fork();
+	if (rc == -1) { /* fork failed */
+		log_err(errno, msg_daemonname, "fork failed");
+		return ((pid_t) -1);
+	}
+	if (rc > 0)
+		exit(0); /* parent goes away, allowing booting to continue */
+
+	mom_lock(lockfds, F_WRLCK);
+	if ((sid = setsid()) == -1) {
+		log_err(errno, msg_daemonname, "setsid failed");
+		return ((pid_t) -1);
+	}
+	pbs_close_stdfiles();
+	already_forked = 1;
+	return sid;
+}
+#endif	/* end the ifndef WIN32 */
 
 static handler_ret_t
 set_enforcement(char *str)
@@ -8787,72 +8878,23 @@ main(int argc, char *argv[])
 		}
 	}
 
-#ifdef	WIN32 /* ------------------------------------------------------------*/
-#ifndef	DEBUG
-	if (stalone != 1) {
-		(void)fclose(stdin);
-		(void)fclose(stdout);
-		(void)fclose(stderr);
-		dummyfile = fopen("NUL:", "r");
-		assert((dummyfile != 0) && (fileno(dummyfile) == 0));
-		dummyfile = fopen("NUL:", "w");
-		assert((dummyfile != 0) && (fileno(dummyfile) == 1));
-		dummyfile = fopen("NUL:", "w");
-		assert((dummyfile != 0) && (fileno(dummyfile) == 2));
-	}
-
-#else	/* DEBUG */
-	(void)setvbuf(stdout, NULL, _IONBF, 0);
-	(void)setvbuf(stderr, NULL, _IONBF, 0);
-#endif /* DEBUG */
-
-	mom_pid = (pid_t)getpid();
-
-#else /* ! WIN32 ------------------------------------------------------------*/
-
 	/* go into the background and become own session/process group */
-
-#ifndef	DEBUG
-	if (stalone != 1) {
-		mom_lock(lockfds, F_UNLCK);	/* unlock so child can relock */
-
-		if (fork() > 0)
-			return (0);	/* parent goes away */
-
-		if (setsid() == -1) {
-			log_err(errno, msg_daemonname, "setsid failed");
+#ifndef WIN32
+	if (stalone == 0 && already_forked == 0) {
+		if ((mom_pid = go_to_background()) == -1) {
 			return (2);
 		}
-		mom_lock(lockfds, F_WRLCK);	/* lock out other MOMs */
 	}
+#else
+	pbs_close_stdfiles();
 	mom_pid = getpid();
-
-	(void)fclose(stdin);
-	(void)fclose(stdout);
-	(void)fclose(stderr);
-	dummyfile = fopen("/dev/null", "r");
-	assert((dummyfile != 0) && (fileno(dummyfile) == 0));
-	dummyfile = fopen("/dev/null", "w");
-	assert((dummyfile != 0) && (fileno(dummyfile) == 1));
-	dummyfile = fopen("/dev/null", "w");
-	assert((dummyfile != 0) && (fileno(dummyfile) == 2));
-#else	/* DEBUG */
-	if (stalone != 1) {
-		(void) sprintf(log_buffer, "Debug build does not fork.");
-		log_record(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_INFO,
-				__func__, log_buffer);
-	}
-	mom_pid = getpid();
-	(void)setvbuf(stdout, NULL, _IOLBF, 0);
-	(void)setvbuf(stderr, NULL, _IOLBF, 0);
-#endif	/* DEBUG */
+#endif	/* end the ifndef WIN32 */
 
 	/* write MOM's pid into lockfile */
-#ifdef	WIN32
+#ifndef	WIN32
 	lseek(lockfds, (off_t)0, SEEK_SET);
-#else
 	(void)ftruncate(lockfds, (off_t)0);
-#endif
+
 	(void)sprintf(log_buffer, "%d\n", mom_pid);
 	(void)write(lockfds, log_buffer, strlen(log_buffer));
 
