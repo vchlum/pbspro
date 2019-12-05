@@ -201,13 +201,13 @@ tpp_gss_send_ctx_token(int tfd, void *data, int len)
 {
 	tpp_chunk_t chunks[1];
 	char *tosend;
-	
+
 	tosend = malloc(len + 1);
 	if (tosend == NULL) {
 		tpp_log_func(LOG_CRIT, __func__, "malloc failure");
 		return PBS_GSS_ERR_INTERNAL;
 	}
-	tosend[0] = (char)TPP_GSS_CTX;
+	tosend[0] = (char)TPP_AUTH_CTX;
 	memcpy(tosend + 1, data, len);
 
 	chunks[0].data = tosend;
@@ -252,7 +252,7 @@ gss_pkt_presend_handler(int tfd, tpp_packet_t *pkt, void *extra)
 	char *tmpdata;
 
 	/* never wrap handshake */
-	if ((char)(*(pkt->data + sizeof(int))) == (char)TPP_GSS_CTX)
+	if ((char)(*(pkt->data + sizeof(int))) == (char)TPP_AUTH_CTX)
 		return 0;
 
 	if (tpp_pkt_presend_handler)
@@ -286,7 +286,7 @@ gss_pkt_presend_handler(int tfd, tpp_packet_t *pkt, void *extra)
 		memcpy(pkt->pos, &ntotlen, sizeof(int));
 		pkt->pos = pkt->pos + sizeof(int);
 
-		*pkt->pos = (char)TPP_GSS_WRAP;
+		*pkt->pos = (char)TPP_ENCRYPTED_DATA;
 		pkt->pos++;
 		memcpy(pkt->pos, data_out, len_out);
 
@@ -322,12 +322,12 @@ gss_pkt_postsend_handler(int tfd, tpp_packet_t *pkt, void *extra)
 	/* if postsend handler is called from handle_disconnect() gss_extra is NULL
 	 * and this is just a sending simulation. No gss needed. */
 	if (gss_extra) {
-		if ((char)(*(pkt->data + sizeof(int))) == (char)TPP_GSS_CTX) {
+		if ((char)(*(pkt->data + sizeof(int))) == (char)TPP_AUTH_CTX) {
 			tpp_free_pkt(pkt);
 			return 0;
 		}
 
-		if ((char)(*(pkt->data + sizeof(int))) == (char)TPP_GSS_WRAP) {
+		if ((char)(*(pkt->data + sizeof(int))) == (char)TPP_ENCRYPTED_DATA) {
 			free(pkt->data);
 
 			/* recover saved cleartext */
@@ -385,9 +385,9 @@ gss_pkt_handler(int tfd, void *data, int len, void *ctx, void *extra)
 
 		return -1;
 	}
-	
+
 	switch (type) {
-		case TPP_GSS_CTX:
+		case TPP_AUTH_CTX:
 			if (gss_extra->gssctx_established) {
 				snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "GSS context already established");
 				tpp_log_func(LOG_ERR, __func__, tpp_get_logbuf());
@@ -434,7 +434,7 @@ gss_pkt_handler(int tfd, void *data, int len, void *ctx, void *extra)
 
 			break;
 
-		case TPP_GSS_WRAP:
+		case TPP_ENCRYPTED_DATA:
 			if (gss_extra->ready == 0) {
 				snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "wrapped data ready but GSS layer not ready");
 				tpp_log_func(LOG_ERR, __func__, tpp_get_logbuf());
@@ -449,7 +449,7 @@ gss_pkt_handler(int tfd, void *data, int len, void *ctx, void *extra)
 				return -1;
 			}
 
-			if (pbs_gss_unwrap(gss_extra, data + 1, len -1, &data_out, &len_out) != PBS_GSS_OK) {/* +/- 1 for TPP_GSS_WRAP */
+			if (pbs_gss_unwrap(gss_extra, data + 1, len -1, &data_out, &len_out) != PBS_GSS_OK) {/* +/- 1 for TPP_ENCRYPTED_DATA */
 				snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "unwrapping data error");
 				tpp_log_func(LOG_ERR, __func__, tpp_get_logbuf());
 

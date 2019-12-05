@@ -508,7 +508,7 @@ dis_request_read(int sfds, struct batch_request *request)
 	int	 rc; 	/* return code */
 
 	if (!request->isrpp)
-		DIS_tcp_setup(sfds);	/* setup for DIS over tcp */
+		DIS_tcp_funcs();	/* setup for DIS over tcp */
 
 	/* Decode the Request Header, that will tell the request type */
 
@@ -770,6 +770,6 @@ DIS_reply_read(int sock, struct batch_reply *preply, int rpp)
 		return (decode_DIS_replySvrRPP(sock, preply));
 
 
-	DIS_tcp_setup(sock);
+	DIS_tcp_funcs();
 	return  (decode_DIS_replySvr(sock, preply));
 }

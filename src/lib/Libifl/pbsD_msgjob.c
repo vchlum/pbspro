@@ -87,11 +87,10 @@ __pbs_msgjob(int c, char *jobid, int fileopt, char *msg, char *extend)
 
 	/* setup DIS support routines for following DIS calls */
 
-	DIS_tcp_setup(connection[c].ch_socket);
+	DIS_tcp_funcs();
 
 	if ((rc = PBSD_msg_put(c, jobid, fileopt, msg, extend, 0, NULL)) != 0) {
-		connection[c].ch_errtxt = strdup(dis_emsg[rc]);
-		if (connection[c].ch_errtxt == NULL) {
+		if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {
 			pbs_errno = PBSE_SYSTEM;
 		} else {
 			pbs_errno = PBSE_PROTOCOL;
@@ -103,7 +102,7 @@ __pbs_msgjob(int c, char *jobid, int fileopt, char *msg, char *extend)
 	/* read reply */
 
 	reply = PBSD_rdrpy(c);
-	rc = connection[c].ch_errno;
+	rc = get_conn_errno(c);
 
 	PBSD_FreeReply(reply);
 
@@ -154,11 +153,10 @@ pbs_py_spawn(int c, char *jobid, char **argv, char **envp)
 
 	/* setup DIS support routines for following DIS calls */
 
-	DIS_tcp_setup(connection[c].ch_socket);
+	DIS_tcp_funcs();
 
 	if ((rc = PBSD_py_spawn_put(c, jobid, argv, envp, 0, NULL)) != 0) {
-		connection[c].ch_errtxt = strdup(dis_emsg[rc]);
-		if (connection[c].ch_errtxt == NULL) {
+		if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {
 			pbs_errno = PBSE_SYSTEM;
 		} else {
 			pbs_errno = PBSE_PROTOCOL;
@@ -170,7 +168,7 @@ pbs_py_spawn(int c, char *jobid, char **argv, char **envp)
 	/* read reply */
 
 	reply = PBSD_rdrpy(c);
-	if ((reply == NULL) || (connection[c].ch_errno != 0))
+	if ((reply == NULL) || (get_conn_errno(c) != 0))
 		rc = -1;
 	else
 		rc = reply->brp_auxcode;
@@ -209,11 +207,10 @@ char *extend;
 
 	/* setup DIS support routines for following DIS calls */
 
-	DIS_tcp_setup(connection[c].ch_socket);
+	DIS_tcp_funcs();
 
 	if ((rc = PBSD_relnodes_put(c, jobid, node_list, extend, 0, NULL)) != 0) {
-		connection[c].ch_errtxt = strdup(dis_emsg[rc]);
-		if (connection[c].ch_errtxt == NULL) {
+		if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {
 			pbs_errno = PBSE_SYSTEM;
 		} else {
 			pbs_errno = PBSE_PROTOCOL;
@@ -225,7 +222,7 @@ char *extend;
 	/* read reply */
 
 	reply = PBSD_rdrpy(c);
-	rc = connection[c].ch_errno;
+	rc = get_conn_errno(c);
 
 	PBSD_FreeReply(reply);
 
@@ -235,4 +232,3 @@ char *extend;
 
 	return rc;
 }
-

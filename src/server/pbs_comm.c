@@ -660,15 +660,7 @@ main(int argc, char **argv)
 		return (1);
 	}
 
-	rc = 0;
-	if (pbs_conf.auth_method == AUTH_RESV_PORT || pbs_conf.auth_method == AUTH_GSS) {
-		rc = set_tpp_config(&pbs_conf, &conf, host, port, routers, pbs_conf.pbs_use_compression,
-				TPP_AUTH_RESV_PORT, NULL, NULL);
-	} else {
-		/* for all non-resv-port based authentication use a callback from TPP */
-		rc = set_tpp_config(&pbs_conf, &conf, host, port, routers, pbs_conf.pbs_use_compression,
-				TPP_AUTH_EXTERNAL, get_ext_auth_data, validate_ext_auth_data);
-	}
+	rc = set_tpp_config(&pbs_conf, &conf, host, port, routers);
 	if (rc == -1) {
 		(void) sprintf(log_buffer, "Error setting TPP config");
 		log_err(-1, __func__, log_buffer);
@@ -742,7 +734,7 @@ main(int argc, char **argv)
 		log_err(errno, __func__, "sigaction for USR2");
 		return (2);
 	}
-#ifdef PBS_UNDOLR_ENABLED	
+#ifdef PBS_UNDOLR_ENABLED
 	act.sa_handler = catch_sigusr1;
 #endif
 	if (sigaction(SIGUSR1, &act, &oact) != 0) {

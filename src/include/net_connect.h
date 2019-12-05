@@ -208,7 +208,6 @@ struct connection {
 	int		cn_sock;	/* socket descriptor */
 	pbs_net_t	cn_addr;	/* internet address of client */
 	int		cn_sockflgs;	/* file status flags - fcntl(F_SETFL) */
-	int		cn_handle;	/* handle for API, see svr_connect() */
 	unsigned int	cn_port;	/* internet port number of client */
 	unsigned short  cn_authen;	/* authentication flags */
 	enum conn_type	cn_active;	/* idle or type if active */

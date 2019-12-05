@@ -1512,7 +1512,7 @@ check_block_wt(struct work_task *ptask)
 		/* Set socket to Non-blocking */
 		sock_flags = fcntl(blockj->fd, F_GETFL, 0);
 		if (fcntl(blockj->fd, F_SETFL, sock_flags | O_NONBLOCK) == -1) {
-			sprintf(log_buffer, "Failed to set non-blocking flag on socket for job %s", 
+			sprintf(log_buffer, "Failed to set non-blocking flag on socket for job %s",
 			blockj->jobid);
 			goto err;
 		}
@@ -1554,7 +1554,7 @@ check_block_wt(struct work_task *ptask)
 	**	All ready to talk... now send the info.
 	*/
 
-	DIS_tcp_setup(blockj->fd);
+	DIS_tcp_funcs();
 	ret = diswsi(blockj->fd, 1);		/* version */
 	if (ret != DIS_SUCCESS)
 		goto err;
@@ -1571,11 +1571,12 @@ check_block_wt(struct work_task *ptask)
 	ret = diswsi(blockj->fd, blockj->exitstat);
 	if (ret != DIS_SUCCESS)
 		goto err;
-	(void)DIS_tcp_wflush(blockj->fd);
+	(void)dis_flush(blockj->fd);
 
 	sprintf(log_buffer, "%s: Write successful to client %s for job %s ", __func__,
 	blockj->client, blockj->jobid);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_NOTICE, blockj->jobid, log_buffer);
+	dis_destroy_chan(blockj->fd);
 	CS_close_socket(blockj->fd);
 	goto end;
 
@@ -1584,17 +1585,19 @@ retry:
 		set_task(WORK_Timed, time_now + 10, check_block_wt, blockj);
 		return;
 	} else {
-		sprintf(log_buffer, "Unable to reply to client %s for job %s", 
+		sprintf(log_buffer, "Unable to reply to client %s for job %s",
 		blockj->client, blockj->jobid);
 	}
 err:
+	DIS_tcp_funcs();
+	dis_destroy_chan(blockj->fd);
 	if (ret != DIS_SUCCESS) {
 		sprintf(log_buffer, "DIS error while replying to client %s for job %s",
 		blockj->client, blockj->jobid);
 	}
 	log_err(-1, __func__, log_buffer);
 end:
-	if (blockj->fd != -1) 
+	if (blockj->fd != -1)
 		close(blockj->fd);
 	free(blockj->msg);
 	free(blockj);
@@ -1613,7 +1616,7 @@ check_block(job *pjob, char *message)
 	int			port;
 	char			*phost;
 	char			*jobid = pjob->ji_qs.ji_jobid;
-	struct 			block_job_reply *blockj; 
+	struct 			block_job_reply *blockj;
 
 	if ((pjob->ji_wattr[(int)JOB_ATR_block].at_flags & ATR_VFLAG_SET) == 0)
 		return;
@@ -1658,7 +1661,7 @@ check_block(job *pjob, char *message)
 	blockj->fd = -1;
 	blockj->reply_time = time(NULL);
 	blockj->exitstat = pjob->ji_qs.ji_un.ji_exect.ji_exitstat;
-	strcpy(blockj->jobid, pjob->ji_qs.ji_jobid);	
+	strcpy(blockj->jobid, pjob->ji_qs.ji_jobid);
 
 	set_task(WORK_Immed, 0, check_block_wt, blockj);
 	return;

@@ -465,8 +465,6 @@ DECLDIR int      PBSD_ucred(int, char *, int, char *, int);
 
 #else
 
-extern int pbs_connection_getsocket(int);
-
 extern int pbs_connect_noblk(char *, int);
 
 extern int pbs_connection_set_nodelay(int);
@@ -559,4 +557,3 @@ extern struct batch_status *bs_find(struct batch_status *, const char *);
 #endif
 
 #endif	/* _PBS_INTERNAL_H */
-

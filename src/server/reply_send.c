@@ -180,17 +180,17 @@ dis_reply_write(int sfds, struct batch_request *preq)
 		rc = encode_DIS_replyRPP(sfds, preq->rppcmd_msgid, preply);
 	} else {
 		/*
-		 * clear pbs_tcp_errno - set on error in DIS_tcp_wflush when called
+		 * clear pbs_tcp_errno - set on error in dis_flush when called
 		 * either in encode_DIS_reply() or directly below.
 		 */
 		pbs_tcp_errno = 0;
-		DIS_tcp_setup(sfds);		/* setup for DIS over tcp */
+		DIS_tcp_funcs();		/* setup for DIS over tcp */
 
 		rc = encode_DIS_reply(sfds, preply);
 	}
 
 	if (rc == 0) {
-		DIS_wflush(sfds, preq->isrpp);
+		dis_flush(sfds);
 	}
 
 	if (rc) {

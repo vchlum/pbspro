@@ -75,7 +75,6 @@
     <ClInclude Include="..\..\src\include\cmds.h" />
     <ClInclude Include="..\..\src\include\credential.h" />
     <ClInclude Include="..\..\src\include\dis.h" />
-    <ClInclude Include="..\..\src\include\dis_init.h" />
     <ClInclude Include="..\..\src\include\getopt.h" />
     <ClInclude Include="..\..\src\include\job.h" />
     <ClInclude Include="..\..\src\include\libpbs.h" />

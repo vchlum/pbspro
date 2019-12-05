@@ -82,7 +82,6 @@
 #include	"net_connect.h"
 #include	"rpp.h"
 #include	"dis.h"
-#include	"dis_init.h"
 #include	"mom_func.h"
 #include	"credential.h"
 #include	"ticket.h"
@@ -764,7 +763,7 @@ im_compose(int stream, char *jobid, char *cookie, int command,
 
 	if (stream < 0)
 		return DIS_EOF;
-	DIS_rpp_reset();
+	DIS_rpp_funcs();
 
 	ret = diswsi(stream, IM_PROTOCOL);
 	if (ret != DIS_SUCCESS)
@@ -2253,7 +2252,7 @@ node_bailout(job *pjob, hnodent *np)
 				(void)tm_reply(ep->ee_fd, ptask->ti_protover,
 					TM_ERROR, ep->ee_client);
 				(void)diswsi(ep->ee_fd, TM_ESYSTEM);
-				(void)DIS_tcp_wflush(ep->ee_fd);
+				(void)dis_flush(ep->ee_fd);
 				break;
 
 			case	IM_POLL_JOB:
@@ -4761,7 +4760,7 @@ join_err:
 					(void)tm_reply(efd, ptask->ti_protover,
 						TM_OKAY, event_client);
 					(void)diswui(efd, taskid);
-					(void)DIS_tcp_wflush(efd);
+					(void)dis_flush(efd);
 					break;
 
 				case	IM_GET_TASKS:
@@ -4782,7 +4781,7 @@ join_err:
 					(void)tm_reply(efd, ptask->ti_protover,
 						TM_OKAY, event_client);
 					for (;;) {
-						DIS_rpp_reset();
+						DIS_rpp_funcs();
 						taskid = disrui(stream, &ret);
 						if (ret != DIS_SUCCESS) {
 							if (ret == DIS_EOD)
@@ -4799,7 +4798,7 @@ join_err:
 					}
 					DIS_tcp_funcs();
 					(void)diswui(efd, TM_NULL_TASK);
-					(void)DIS_tcp_wflush(efd);
+					(void)dis_flush(efd);
 					break;
 
 				case	IM_SIGNAL_TASK:
@@ -4817,7 +4816,7 @@ join_err:
 						break;
 					(void)tm_reply(efd, ptask->ti_protover,
 						TM_OKAY, event_client);
-					(void)DIS_tcp_wflush(efd);
+					(void)dis_flush(efd);
 					break;
 
 				case	IM_OBIT_TASK:
@@ -4838,7 +4837,7 @@ join_err:
 					(void)tm_reply(efd, ptask->ti_protover,
 						TM_OKAY, event_client);
 					(void)diswsi(efd, exitval);
-					(void)DIS_tcp_wflush(efd);
+					(void)dis_flush(efd);
 					break;
 
 				case	IM_GET_INFO:
@@ -4860,7 +4859,7 @@ join_err:
 					(void)tm_reply(efd, ptask->ti_protover,
 						TM_OKAY, event_client);
 					(void)diswcs(efd, info, len);
-					(void)DIS_tcp_wflush(efd);
+					(void)dis_flush(efd);
 					break;
 
 				case	IM_GET_RESC:
@@ -4882,7 +4881,7 @@ join_err:
 					(void)tm_reply(efd, ptask->ti_protover,
 						TM_OKAY, event_client);
 					(void)diswst(efd, info);
-					(void)DIS_tcp_wflush(efd);
+					(void)dis_flush(efd);
 					break;
 
 				case	IM_POLL_JOB:
@@ -5322,7 +5321,7 @@ join_err:
 					(void)tm_reply(efd, ptask->ti_protover,
 						TM_ERROR, event_client);
 					(void)diswsi(efd, errcode);
-					(void)DIS_tcp_wflush(efd);
+					(void)dis_flush(efd);
 					break;
 
 				case	IM_POLL_JOB:
@@ -6204,7 +6203,7 @@ aterr:
 			sprintf(log_buffer, "REGISTER received - NOT IMPLEMENTED");
 			(void)tm_reply(fd, version, TM_ERROR, event);
 			(void)diswsi(fd, TM_ENOTIMPLEMENTED);
-			(void)DIS_tcp_wflush(fd);
+			(void)dis_flush(fd);
 			goto err;
 
 		default:
@@ -6699,14 +6698,14 @@ aterr:
 			sprintf(log_buffer, "%s: unknown command %d", jobid, command);
 			(void)tm_reply(fd, version, TM_ERROR, event);
 			(void)diswsi(fd, TM_EUNKNOWNCMD);
-			(void)DIS_tcp_wflush(fd);
+			(void)dis_flush(fd);
 			goto err;
 	}
 
 done:
 	if (reply) {
 		DBPRT(("%s: REPLY %s\n", __func__, dis_emsg[ret]))
-		if (ret != DIS_SUCCESS || DIS_tcp_wflush(fd) == -1) {
+		if (ret != DIS_SUCCESS || dis_flush(fd) == -1) {
 			sprintf(log_buffer, "comm failed %s", dis_emsg[ret]);
 			log_err(errno, __func__, log_buffer);
 			close_conn(fd);

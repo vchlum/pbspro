@@ -95,6 +95,7 @@
 #include "avltree.h"
 
 #include "rpp.h"
+#include "dis.h"
 #include "tpp_common.h"
 
 /*
@@ -247,9 +248,6 @@ typedef struct {
 
 	tpp_que_elem_t *timeout_node; /* pointer to myself in the timeout streams queue */
 } stream_t;
-
-/* function to delete the user data, registered by dis layer */
-void (*tpp_user_data_del_fnc)(int);
 
 /*
  * Slot structure - Streams are part of an array of slots
@@ -561,7 +559,7 @@ leaf_post_connect_handler(int tfd, void *data, void *c, void *extra)
 		hdr.hop = 1;
 		hdr.index = r->index;
 		hdr.num_addrs = leaf_addr_count;
-		
+
 		/* log my own leaf name to help in troubleshooting later */
 		for(i = 0; i < leaf_addr_count; i++) {
 			sprintf(tpp_get_logbuf(), "Registering address %s to pbs_comm", tpp_netaddr(&leaf_addrs[i]));
@@ -803,6 +801,49 @@ tpp_init(struct tpp_config *cnf)
 #endif
 
 	return (app_fd);
+}
+
+/**
+ * @brief
+ *	tpp/dis support routine for ending a message that was read
+ *	Skips over decoding to the next message
+ *
+ * @param[in] - fd - Tpp channel whose dis read packet has to be purged
+ *
+ * @retval	0 Success
+ * @retval	-1 error
+ *
+ * @par Side Effects:
+ *	None
+ *
+ * @par MT-safe: No
+ *
+ */
+int
+tpp_eom(int fd)
+{
+	tpp_packet_t *p;
+	stream_t *strm;
+	pbs_tcp_chan_t *tpp;
+
+	/* check for bad file descriptor */
+	if (fd < 0)
+		return -1;
+
+	TPP_DBPRT(("sd=%d", fd));
+	strm = get_strm(fd);
+	if (!strm) {
+		TPP_DBPRT(("Bad sd %d", fd));
+		return -1;
+	}
+	p = tpp_deque(&strm->recv_queue);
+	tpp_free_pkt(p);
+	tpp = tpp_get_user_data(fd);
+	if (tpp != NULL) {
+		/* initialize read buffer */
+		dis_clear_buf(&tpp->readbuf);
+	}
+	return 0;
 }
 
 /**
@@ -1168,46 +1209,6 @@ tpp_send_inner(int sd, void *data, int len, int full_len, int cmprsd_len)
 
 /**
  * @brief
- *	Helper function called by tpp_eom (from dis layer).
- *
- * @par Functionality:
- *	The dis layer implements the higher level function "tpp_eom" (the
- *	counterpart of rpp_eom). This function dequeues the "current" message
- *	(this is being decoded by DIS and used by the APP) and purges it from
- *	the queue. Thus any remaining data in the message packet is discarded.
- *
- * @param[in] sd - The stream descriptor to which to send data
- *
- * @return - Failure code
- * @retval -1   - Function failed
- * @retval 0    - Success
- *
- * @par Side Effects:
- *	None
- *
- * @par MT-safe: Yes
- *
- */
-int
-tpp_inner_eom(int sd)
-{
-	tpp_packet_t *p;
-	stream_t *strm;
-
-	strm = get_strm(sd);
-	if (!strm) {
-		TPP_DBPRT(("Bad sd %d", sd));
-		return -1;
-	}
-
-	p = tpp_deque(&strm->recv_queue);
-	tpp_free_pkt(p);
-
-	return 0;
-}
-
-/**
- * @brief
  *	poll function to check if any streams have a message/notification
  *	waiting to be read by the APP.
  *
@@ -1500,7 +1501,7 @@ tpp_getaddr(int fd)
 /**
  * @brief
  *	Convenience function to free router strutures
- *	
+ *
  * @par MT-safe: yes
  *
  */
@@ -1548,12 +1549,13 @@ tpp_shutdown()
 
 	tpp_transport_shutdown();
 
+	DIS_tpp_funcs();
+
 	tpp_lock(&strmarray_lock);
 	for (i = 0; i < max_strms; i++) {
 		if (strmarray[i].slot_state == TPP_SLOT_BUSY) {
 			sd = strmarray[i].strm->sd;
-			if (tpp_user_data_del_fnc != NULL)
-				(*tpp_user_data_del_fnc)(sd);
+			dis_destroy_chan(sd);
 			free_stream_resources(strmarray[i].strm);
 			free_stream(sd);
 		}
@@ -1589,18 +1591,18 @@ tpp_terminate()
 	 * not used after a fork. The function tpp_mbox_destroy
 	 * calls pthread_mutex_destroy, so don't call them.
 	 * Also never log anything from a terminate handler.
-	 * 
-	 * Don't bother to free any TPP data as well, as the forked 
+	 *
+	 * Don't bother to free any TPP data as well, as the forked
 	 * process is usually short lived and no point spending time
-	 * freeing space on a short lived forked process. Besides, 
-	 * the TPP thread which is lost after fork might have been in 
+	 * freeing space on a short lived forked process. Besides,
+	 * the TPP thread which is lost after fork might have been in
 	 * between using these data when the fork happened, so freeing
 	 * some structures might be dangerous.
 	 *
-	 * Thus the only thing we do here is to close file/sockets 
+	 * Thus the only thing we do here is to close file/sockets
 	 * so that the kernel can recognize when a close happens from the
 	 * main process.
-	 * 
+	 *
 	 */
 	if (tpp_child_terminated == 1)
 		return;
@@ -1772,7 +1774,7 @@ tpp_get_user_data(int sd)
  *
  * @par Functionality
  *	Used by the tpp_dis later associate a buffer to the stream.
- *	Used by tpp_dis.c to encode/decode data before sending/after receiving
+ *	Used by tppdis_get_user_data to encode/decode data before sending/after receiving
  *	Since this is associated with the stream, this eliminates the need for
  *	the dis layer to maintain a separate array of buffers for each stream.
  *
@@ -1803,38 +1805,6 @@ tpp_set_user_data(int sd, void *user_data)
 		return -1;
 	}
 	strm->user_data = user_data;
-	return 0;
-}
-
-/**
- * @brief
- *	Associate a user buffer delete function to be called when the stream
- *	is being  destroyed,
- *
- * @par Functionality
- *	When this layer destroys the stream, it needs to delete the user bufffer
- *	associated with the stream, but it has no knowledge of how to delete it.
- *	The tpp_dis layer sets a delete function using this function which is
- *	called before destroying the stream. This allows code at the tpp_dis
- *	level to properly clean up the buffer and delete it.
- *
- * @param[in] sd - The stream descriptor
- * @param[in] fnc - The function to register as a user buffer deletion function
- *
- * @return Error code
- * @retval -1 - Bad stream descriptor
- * @retval  0 - Success
- *
- * @par Side Effects:
- *	None
- *
- * @par MT-safe: Yes
- *
- */
-int
-tpp_set_user_data_del_fnc(int sd, void (*fnc)(int))
-{
-	tpp_user_data_del_fnc = fnc;
 	return 0;
 }
 
@@ -1923,9 +1893,7 @@ tpp_close(int sd)
 
 	tpp_unlock(&strmarray_lock);
 
-	/* call user data delete function */
-	if (tpp_user_data_del_fnc != NULL)
-		(*tpp_user_data_del_fnc)(strm->sd);
+	dis_destroy_chan(strm->sd);
 
 	if (strm->t_state != TPP_TRNS_STATE_OPEN || send_spl_packet(strm, TPP_CLOSE_STRM) != 0)
 		queue_strm_close(strm);
@@ -2351,8 +2319,7 @@ tpp_mcast_close(int mtfd)
 		return -1;
 	}
 
-	if (tpp_user_data_del_fnc != NULL)
-		(*tpp_user_data_del_fnc)(strm->sd);
+	dis_destroy_chan(strm->sd);
 
 	free_stream_resources(strm);
 	free_stream(mtfd);

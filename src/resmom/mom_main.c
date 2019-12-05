@@ -100,7 +100,6 @@
 #include	"net_connect.h"
 #include	"rpp.h"
 #include	"dis.h"
-#include	"dis_init.h"
 #include	"resmon.h"
 #include	"batch_request.h"
 #include	"pbs_license.h"
@@ -1107,7 +1106,7 @@ initialize(void)
 	 * the default lenfth of the AVL_IX_REC is accessed, it must be
 	 * through xxrp or the compiler will complain about accessing
 	 * memory beyond the size of the structure.
-	 * 
+	 *
 	 */
 	union {
 		AVL_IX_REC	xrp;
@@ -2455,7 +2454,7 @@ set_job_launch_delay(char *value)
 	log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_NOTICE,
 		"job_launch_delay", value);
 	i = strtol(value, &endp, 10);
- 
+
 	if ((*endp != '\0') || (i <= 0) || (i == LONG_MIN) || (i == LONG_MAX))
 		return HANDLER_FAIL;	/* error */
 	job_launch_delay = i;
@@ -5988,7 +5987,7 @@ rm_request(int iochan, int version, int tcp)
 		ipadd = conn->cn_addr;
 		port = conn->cn_port;
 		close_io = close_conn;
-		flush_io = DIS_tcp_wflush;
+		flush_io = dis_flush;
 	}
 	else {
 		addr = rpp_getaddr(iochan);
@@ -6244,7 +6243,7 @@ do_rpp(int stream)
 	void	is_request	(int stream, int version);
 	void	im_eof		(int stream, int ret);
 
-	DIS_rpp_reset();
+	DIS_rpp_funcs();
 	proto = disrsi(stream, &ret);
 	if (ret != DIS_SUCCESS) {
 		im_eof(stream, ret);
@@ -6421,7 +6420,7 @@ tcp_request(int fd)
 		(ipadd & 0x000000ff),
 		ntohs(conn->cn_port));
 	DBPRT(("%s: fd %d addr %s\n", __func__, fd, address))
-	DIS_tcp_setup(fd);
+	DIS_tcp_funcs();
 	if (!addrfind(ipadd)) {
 		sprintf(log_buffer, "bad connect from %s", address);
 		log_err(errno, __func__, log_buffer);
@@ -9342,16 +9341,7 @@ main(int argc, char *argv[])
 
 	    /* set tcp function pointers */
 		set_tpp_funcs(log_tppmsg);
-
-		if (pbs_conf.auth_method == AUTH_RESV_PORT || pbs_conf.auth_method == AUTH_GSS) {
-				rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_rm_port, pbs_conf.pbs_leaf_routers,
-														pbs_conf.pbs_use_compression, TPP_AUTH_RESV_PORT, NULL, NULL);
-		} else {
-				/* for all non-resv-port based authentication use a callback from TPP */
-				rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_rm_port, pbs_conf.pbs_leaf_routers,
-														pbs_conf.pbs_use_compression, TPP_AUTH_EXTERNAL, get_ext_auth_data, validate_ext_auth_data);
-		}
-
+		rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_rm_port, pbs_conf.pbs_leaf_routers);
 		free(nodename);
 
 		if (rc == -1) {

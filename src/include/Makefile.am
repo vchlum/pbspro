@@ -53,7 +53,6 @@ noinst_HEADERS = \
 	cmds.h \
 	credential.h \
 	dis.h \
-	dis_init.h \
 	grunt.h \
 	hook_func.h \
 	hook.h \
@@ -131,4 +130,3 @@ noinst_HEADERS = \
 	win.h \
 	win_remote_shell.h \
 	work_task.h
-

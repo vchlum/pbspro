@@ -73,8 +73,6 @@
  */
 
 
-struct connect_handle	connection[NCONNECTS];
-
 int
 main(int argc, char *argv[], char *envp[])
 {
@@ -194,15 +192,10 @@ main(int argc, char *argv[], char *envp[])
 		fprintf(stderr, "pbs_iff: thread initialization failed\n");
 		return (1);
 	}
-
-	connection[1].ch_inuse = 1;
-	connection[1].ch_errno = 0;
-	connection[1].ch_socket = sock;
-	connection[1].ch_errtxt = NULL;
-	DIS_tcp_setup(sock);
+	DIS_tcp_funcs();
 
 	/* setup connection level thread context */
-	if (pbs_client_thread_init_connect_context(1) != 0) {
+	if (pbs_client_thread_init_connect_context(sock) != 0) {
 		fprintf(stderr, "pbs_iff: connect initialization failed\n");
 		return (1);
 	}
@@ -252,13 +245,13 @@ main(int argc, char *argv[], char *envp[])
 			encode_DIS_ReqExtend(sock, NULL)) {
 			return (2);
 		}
-		if (DIS_tcp_wflush(sock)) {
+		if (dis_flush(sock)) {
 			return (2);
 		}
 
 		/* read back the response */
 
-		reply = PBSD_rdrpy(1);
+		reply = PBSD_rdrpy(sock);
 		if (reply == NULL) {
 			fprintf(stderr, "pbs_iff: error returned: %d\n", pbs_errno);
 			return (1);
@@ -270,7 +263,7 @@ main(int argc, char *argv[], char *envp[])
 		} else if (reply->brp_code == 0)
 			break;
 	}
-	(void)pbs_disconnect(1);
+	(void)pbs_disconnect(sock);
 
 	if (reply->brp_code != 0) {
 		fprintf(stderr, "pbs_iff: error returned: %d\n", reply->brp_code);

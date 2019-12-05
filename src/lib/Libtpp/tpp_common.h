@@ -253,8 +253,8 @@ enum TPP_MSG_TYPES {
         TPP_CTL_MSG,
         TPP_CLOSE_STRM,
         TPP_MCAST_DATA,
-        TPP_GSS_CTX,
-        TPP_GSS_WRAP,
+        TPP_AUTH_CTX,
+        TPP_ENCRYPTED_DATA,
         TPP_LAST_MSG
 };
 
@@ -402,7 +402,7 @@ tpp_que_elem_t* tpp_que_ins_elem(tpp_que_t *l, tpp_que_elem_t *n,
 /* End - routines and headers to manage FIFO queues */
 
 void tpp_log_err(int errnum, char *routine, char *text);
-
+void DIS_tpp_funcs();
 int tpp_send(int sd, void *data, int len);
 int tpp_recv(int sd, void *data, int len);
 int tpp_ready_fds(int *sds, int len);
@@ -414,6 +414,7 @@ int tpp_init_tls_key(void);
 tpp_tls_t *tpp_get_tls(void);
 char *tpp_get_logbuf(void);
 char *mk_hostname(char *host, int port);
+int tpp_eom(int fd);
 int tpp_open(char *dest_host, unsigned int port);
 int tpp_bind(unsigned int port);
 int tpp_io(void);
@@ -479,9 +480,7 @@ int tpp_set_close_on_exec(int fd);
 void tpp_free_pkt(tpp_packet_t *pkt);
 int tpp_send_ctl_msg(int fd, int code, tpp_addr_t *src, tpp_addr_t *dest, unsigned int src_sd, char err_num, char *msg);
 int tpp_cr_thrd(void *(*start_routine)(void*), pthread_t *id, void *data);
-int tpp_set_user_data_del_fnc(int sd, void (*fnc)(int));
 void tpp_add_close_func(int sd, void (*func)(int));
-int tpp_inner_eom(int sd);
 int tpp_set_keep_alive(int fd, struct tpp_config *cnf);
 
 void *tpp_deflate(void *inbuf, unsigned int inlen, unsigned int *outlen);

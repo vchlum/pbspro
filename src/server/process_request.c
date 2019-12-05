@@ -104,7 +104,6 @@
 #include "batch_request.h"
 #include "log.h"
 #include "rpp.h"
-#include "dis_init.h"
 #include "dis.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
@@ -240,23 +239,9 @@ authenticate_external(conn_t *conn, struct batch_request *request)
 #ifndef PBS_MOM
 #if defined(PBS_SECURITY) && (PBS_SECURITY == KRB5)
 		case AUTH_GSS:
-			if (pbs_conf.auth_method != AUTH_GSS) {
-				rc = -2;
-				snprintf(log_buffer, sizeof(log_buffer), "PBS Server not enabled for GSS Authentication");
-				goto err;
-			}
-
 			rc = req_gss_auth(request);
-
 			if (rc != 0)
 				goto err;
-
-			(void) strcpy(conn->cn_username, request->rq_user);
-			(void) strcpy(conn->cn_hostname, request->rq_host);
-			conn->cn_timestamp = time_now;
-			conn->cn_authen |= PBS_NET_CONN_AUTHENTICATED;
-			conn->cn_authen |= PBS_NET_CONN_GSSAPIAUTH;
-
 			return rc;
 #endif
 #endif
@@ -1607,4 +1592,3 @@ get_servername(unsigned int *port)
 
 	return name;
 }
-

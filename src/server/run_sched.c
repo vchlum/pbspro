@@ -142,7 +142,7 @@ put_sched_cmd(int sock, int cmd, char *jobid)
 {
 	int   ret;
 
-	DIS_tcp_setup(sock);
+	DIS_tcp_funcs();
 	if ((ret = diswsi(sock, cmd)) != DIS_SUCCESS)
 		goto err;
 
@@ -151,7 +151,7 @@ put_sched_cmd(int sock, int cmd, char *jobid)
 			goto err;
 	}
 
-	(void)DIS_tcp_wflush(sock);
+	(void)dis_flush(sock);
 	return 0;
 
 err:
@@ -507,7 +507,7 @@ scheduler_close(int sock)
 	 *	dealing with the job.  Tell qrun it failed if the qrun connection
 	 *	is still there.
 	 *      If any qrun request is pending in the deffered list, set svr_unsent_qrun_req so
-	 * 	they are sent when the Scheduler completes this cycle 
+	 * 	they are sent when the Scheduler completes this cycle
 	 */
 	pdefr = (struct deferred_request *)GET_NEXT(svr_deferred_req);
 	while (pdefr) {

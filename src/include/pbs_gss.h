@@ -50,7 +50,6 @@ extern "C" {
 #include <gssapi.h>
 
 #define GSS_NT_SERVICE_NAME GSS_C_NT_HOSTBASED_SERVICE
-#define DIS_GSS_BUF_SIZE 4096 /* default DIS buffer size */
 
 enum PBS_GSS_ROLE {
 	PBS_GSS_ROLE_UNKNOWN = 0,
@@ -69,8 +68,6 @@ typedef struct {
 	char *clientname; /* client name in string */
 	gss_buffer_desc client_name; /* client name in gss buffer */
 	int init_client_ccache; /* if true the client ccache is attempted to be created from keytab */
-	int req_output_size; /* used to determine the wrap_size */
-	OM_uint32 max_input_size; /*  maximum size of an unwrapped message */
 
 	/* TCP only */
 	int establishing; /* true if handshake in progress */
@@ -79,22 +76,6 @@ typedef struct {
 	char *cleartext; /* saves cleartext for postsend_handler() */
 	int cleartext_len;
 } pbs_gss_extra_t;
-
-struct gss_disbuf {
-	size_t tdis_lead; /* pointer to the lead of the data */
-	size_t tdis_trail; /* pointer to the trailing char of the data */
-	size_t tdis_eod; /* variable to use to calculate end of data */
-	size_t tdis_bufsize;/* size of this dis buffer */
-	char *tdis_thebuf; /* pointer to the dis buffer space */
-};
-
-struct gssdis_chan {
-	struct gss_disbuf readbuf; /* the dis read buffer */
-	struct gss_disbuf writebuf; /* the dis write buffer */
-	struct gss_disbuf gss_readbuf;   /* incoming wrapped data */
-	struct gss_disbuf cleartext;   /* incoming pre-read data - this buffer survives DIS_tcp_setup() */
-	pbs_gss_extra_t* gss_extra;
-};
 
 enum PBS_GSS_ERRORS {
 	PBS_GSS_OK = 0,
@@ -131,10 +112,6 @@ void pbs_gss_set_log_handlers(void (*log_gss_status)(const char *msg, OM_uint32 
 
 /* TCP related */
 int tcp_gss_client_authenticate(int sock, char *hostname, char *ebuf, int ebufsz);
-extern int DIS_tcp_gss_wflush(int fd);
-extern void DIS_gss_funcs(void);
-extern int DIS_tcp_gss_set(int fd, pbs_gss_extra_t *gss_extra);
-extern struct gssdis_chan *(*gss_get_chan)(int stream);
 
 
 #endif
@@ -143,4 +120,3 @@ extern struct gssdis_chan *(*gss_get_chan)(int stream);
 }
 #endif
 #endif /* PBS_GSS_H */
-

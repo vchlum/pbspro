@@ -54,6 +54,8 @@
 #include "server.h"
 #include "dis.h"
 
+extern time_t    time_now;
+
 /* @brief
  *	This should be called on a socket after obtaining client_name via
  *	gss_accept_sec_context. It copies the credid from the client_name
@@ -75,11 +77,8 @@ gss_set_conn(int s)
 	pbs_gss_extra_t *gss_extra = NULL;
 
 	/* this is done only once - after the gss handshake */
-	if (((gss_extra = (pbs_gss_extra_t *)tcp_get_extra(s)) != NULL) &&
-		gss_extra->establishing) {
-
+	if (((gss_extra = (pbs_gss_extra_t *)transport_chan_get_extra(s)) != NULL) && gss_extra->establishing) {
 		conn = get_conn(s);
-
 		free(conn->cn_credid);
 		conn->cn_credid = strdup(gss_extra->clientname);
 		if (conn->cn_credid == NULL) {
@@ -130,15 +129,29 @@ req_gss_auth(struct batch_request *preq)
 {
 	pbs_gss_extra_t *gss_extra = NULL;
 	int sock;
+	conn_t *conn;
+
+	if (pbs_conf.auth_method != AUTH_GSS) {
+		snprintf(log_buffer, sizeof(log_buffer), "PBS Server not enabled for GSS Authentication");
+		return -2;
+	}
 
 	sock = preq->rq_conn;
+	conn = get_conn(sock);
 
-	if ((gss_extra = (pbs_gss_extra_t *)tcp_get_extra(sock)) == NULL){
+	if ((gss_extra = (pbs_gss_extra_t *)transport_chan_get_extra(sock)) == NULL){
 		gss_extra = pbs_gss_alloc_gss_extra();
-		tcp_set_extra(sock, gss_extra);
+		if (!gss_extra)
+			return 1;
+		transport_chan_set_extra(sock, gss_extra);
 	}
 
 	gss_extra->establishing = 1; /* the handshake has been initiated */
+	(void)strcpy(conn->cn_username, preq->rq_user);
+	(void)strcpy(conn->cn_hostname, preq->rq_host);
+	conn->cn_timestamp = time_now;
+	conn->cn_authen |= PBS_NET_CONN_AUTHENTICATED;
+	conn->cn_authen |= PBS_NET_CONN_GSSAPIAUTH;
 
 	return 0;
 }

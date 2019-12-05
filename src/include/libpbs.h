@@ -65,6 +65,7 @@ extern "C" {
 #include "pbs_error.h"
 #include "pbs_internal.h"
 #include "pbs_client_thread.h"
+#include "dis.h"
 
 #define PBS_BATCH_PROT_TYPE	2
 #define PBS_BATCH_PROT_VER	1
@@ -135,17 +136,25 @@ extern int * __pbs_tcperrno_location(void);
 
 extern char pbs_current_group[];
 
-#define NCONNECTS 50
-struct connect_handle {
-	int		ch_inuse;  /* 1 if in use, 0 otherwis */
-	int		ch_socket; /* file descriptor for the open socket */
-	void		*ch_stream;
-	int		ch_errno;  /* last error on this connection */
-	char		*ch_errtxt;/* pointer to last server error text	*/
-	pthread_mutex_t ch_mutex;  /* serialize connection between threads */
-};
-extern struct connect_handle connection[];
-#define PBS_MAX_CONNECTIONS        5000  /* Max connections in the connections array */
+#define NCONNECTS 50 /* max connections per client */
+#define PBS_MAX_CONNECTIONS 5000 /* Max connections in the connections array */
+#define PBS_LOCAL_CONNECTION INT_MAX
+
+typedef struct pbs_conn {
+	int ch_errno;			/* last error on this connection */
+	char *ch_errtxt;		/* pointer to last server error text	*/
+	pthread_mutex_t ch_mutex;	/* serialize connection between threads */
+	pbs_tcp_chan_t *ch_chan;	/* pointer tcp chan structure for this connection */
+} pbs_conn_t;
+
+int set_conn_errtxt(int, const char *);
+char * get_conn_errtxt(int);
+int set_conn_errno(int, int);
+int get_conn_errno(int);
+pbs_tcp_chan_t * get_conn_chan(int);
+int set_conn_chan(int, pbs_tcp_chan_t *);
+pthread_mutex_t * get_conn_mutex(int);
+
 
 /* max number of preempt orderings */
 #define PREEMPT_ORDER_MAX 20
@@ -399,7 +408,6 @@ extern char *PBSD_submit_resv(int connect, char *resv_id,
 	struct attropl *attrib, char *extend);
 extern int DIS_reply_read(int socket, struct batch_reply *preply, int rpp);
 extern void pbs_authors(void);
-extern int DIS_wflush(int sock, int rpp);
 
 extern int engage_external_authentication(int out, char *server_name, int auth_type, int fromsvr, char *ebuf, int ebufsz);
 extern char *PBSD_modify_resv(int connect, char *resv_id,

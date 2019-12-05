@@ -123,7 +123,6 @@
 #include "sched_cmds.h"
 #include "rpp.h"
 #include "dis.h"
-#include "dis_init.h"
 #include "libsec.h"
 #include "pbs_version.h"
 #include "pbs_license.h"
@@ -420,7 +419,7 @@ do_rpp(int stream)
 	void			is_request(int, int);
 	void			stream_eof(int, int, char *);
 
-	DIS_rpp_reset();
+	DIS_rpp_funcs();
 	proto = disrsi(stream, &ret);
 	if (ret != DIS_SUCCESS) {
 		stream_eof(stream, ret, NULL);
@@ -1530,18 +1529,8 @@ try_db_again:
 
 		/* set tpp function pointers */
 		set_tpp_funcs(log_tppmsg);
-
-		if (pbs_conf.auth_method == AUTH_RESV_PORT || pbs_conf.auth_method == AUTH_GSS) {
-			rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_server_port_dis, pbs_conf.pbs_leaf_routers,
-								pbs_conf.pbs_use_compression, TPP_AUTH_RESV_PORT, NULL, NULL);
-		} else {
-			/* for all non-resv-port based authentication use a callback from TPP */
-			rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_server_port_dis, pbs_conf.pbs_leaf_routers,
-								pbs_conf.pbs_use_compression, TPP_AUTH_EXTERNAL, get_ext_auth_data, validate_ext_auth_data);
-		}
-
+		rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_server_port_dis, pbs_conf.pbs_leaf_routers);
 		free(nodename);
-
 		if (rc == -1) {
 			(void) sprintf(log_buffer, "Error setting TPP config");
 			fprintf(stderr, "%s", log_buffer);

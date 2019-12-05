@@ -409,7 +409,7 @@ client_to_svr_extend(pbs_net_t hostaddr, unsigned int port, int authport_flags, 
 				tv.tv_usec = 0;
 				ret = select(1, NULL, &writeset, NULL, &tv);
 				if (ret == SOCKET_ERROR) {
-					errno = WSAGetLastError(); 
+					errno = WSAGetLastError();
 					errn = errno;
 					pbs_errno = errn;
 					closesocket(sock);
@@ -518,4 +518,3 @@ set_nodelay(int fd)
 	opt = 1;
 	return setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 }
-

@@ -160,11 +160,10 @@ pbs_gss_can_get_creds()
  * @retval	structure on success
  * @retval	NULL on error
  */
-pbs_gss_extra_t*
+pbs_gss_extra_t *
 pbs_gss_alloc_gss_extra()
 {
-	pbs_gss_extra_t *gss_extra;
-	gss_extra = calloc(1, sizeof(pbs_gss_extra_t));
+	pbs_gss_extra_t *gss_extra = calloc(1, sizeof(pbs_gss_extra_t));
 	if (!gss_extra) {
 		if (pbs_gss_logerror)
 			pbs_gss_logerror(__func__, "Out of memory allocating gss_extra");
@@ -182,8 +181,6 @@ pbs_gss_alloc_gss_extra()
 	gss_extra->client_name.length = 0;
 	gss_extra->client_name.value = NULL;
 	gss_extra->establishing = 0;
-	gss_extra->req_output_size = 0;
-	gss_extra->max_input_size = 0;
 
 	return gss_extra;
 }
@@ -366,7 +363,7 @@ pbs_gss_client_establish_context(char *service_name, gss_cred_id_t creds, gss_OI
 
 	if (send_tok.length != 0) {
 		pbs_gss_fill_data(&send_tok, data_out, len_out);
-		
+
 		maj_stat = gss_release_buffer(&min_stat, &send_tok);
 		if (maj_stat != GSS_S_COMPLETE) {
 			sprintf(gss_log_buffer, gss_err_msg, __func__, "gss_release_buffer");
@@ -512,7 +509,7 @@ pbs_gss_server_establish_context(gss_cred_id_t server_creds, gss_cred_id_t* clie
  *	This is the main gss handshake function for asynchronous handshake.
  *	It has two branches: client and server. Once the handshake is finished
  *	the GSS structure is set to ready for un/wrapping.
- *	
+ *
  *
  * @param[in] gss_extra - gss structure
  * @param[in] server_host  - server host fqdn
@@ -552,7 +549,7 @@ pbs_gss_establish_context(pbs_gss_extra_t *gss_extra, char *server_host, char *d
 		return PBS_GSS_ERR_INTERNAL;
 
 	gss_context = gss_extra->gssctx;
-	
+
 	if (service_name == NULL) {
 		service_name = (char *) malloc(strlen(PBS_KRB5_SERVICE_NAME) + 1 + strlen(server_host) + 1);
 		if (service_name == NULL) {
@@ -705,15 +702,6 @@ pbs_gss_establish_context(pbs_gss_extra_t *gss_extra, char *server_host, char *d
 		gss_extra->gssctx_established = 1;
 		gss_extra->confidential = (ret_flags & GSS_C_CONF_FLAG);
 
-		maj_stat = gss_wrap_size_limit(&min_stat, gss_context, (ret_flags & GSS_C_CONF_FLAG), GSS_C_QOP_DEFAULT, gss_extra->req_output_size, &(gss_extra->max_input_size));
-		if (maj_stat != GSS_S_COMPLETE) {
-			sprintf(gss_log_buffer, gss_err_msg, __func__, "gss_wrap_size_limit");
-			if (pbs_gss_log_gss_status)
-				pbs_gss_log_gss_status(gss_log_buffer, maj_stat, min_stat);
-
-			return PBS_GSS_ERR_WRAPSIZE;
-		}
-
 		if (gss_extra->role == PBS_GSS_SERVER) {
 			sprintf(gss_log_buffer, "GSS context established with client %s", gss_extra->clientname);
 		} else {
@@ -741,7 +729,7 @@ pbs_gss_establish_context(pbs_gss_extra_t *gss_extra, char *server_host, char *d
 
 /* @brief
  *	The function wraps data based on established GSS context.
- *	
+ *
  * @param[in] gss_extra - gss structure
  * @param[in] data_in - clear text data for wrapping
  * @param[in] len_in - length of data_in
@@ -808,7 +796,7 @@ pbs_gss_wrap(pbs_gss_extra_t *gss_extra, char *data_in, int len_in, char **data_
 
 /* @brief
  *	The function unwraps data based on established GSS context.
- *	
+ *
  * @param[in] gss_extra - gss structure
  * @param[in] data_in - encrypted data for unwrapping
  * @param[in] len_in - length of data_in
@@ -877,7 +865,7 @@ pbs_gss_unwrap(pbs_gss_extra_t *gss_extra, char *data_in, int len_in, char **dat
 
 /* @brief
  *	Function to register the log handler functions
- *	
+ *
  * @param[in] log_gss_status - function ptr to function that logs GSS error codes
  * @param[in] logerror - function ptr to function that logs error
  * @param[in] logdebug - function ptr to function that logs debug messages
