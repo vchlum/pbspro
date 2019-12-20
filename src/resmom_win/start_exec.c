@@ -3863,7 +3863,7 @@ job_nodes_inner(struct job *pjob, hnodent **mynp)
 					 * yet another global variable to represent the hostname
 					 * of the local node.
 					 */
-					if ((pbs_conf.pbs_use_tcp == 1) && pbs_conf.pbs_leaf_name) {
+					if (pbs_conf.pbs_leaf_name) {
 						if (strcmp(pbs_conf.pbs_leaf_name, node_name) != 0) {
 							/* PBS_LEAF_NAME has changed or node_name is uninitialized */
 							strncpy(node_name, pbs_conf.pbs_leaf_name, PBS_MAXHOSTNAME);
@@ -4619,5 +4619,3 @@ set_credential(job *pjob, char **shell, char ***argarray)
 	}
 	return ret;
 }
-
-

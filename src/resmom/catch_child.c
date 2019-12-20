@@ -1954,96 +1954,12 @@ send_restart_rpp(char *svr, unsigned int port)
 }
 
 /**
- * @brief
- * 	send PBS_BATCH_MomRestart message to Server via tcp.
- * @par
- *	Open an TCP connection to the Server/port specified.
- *	Build the batch request and send to the Server.
- *	Wait to read the reply back from the Server.
- *	If accepted, return 0, if explicitly rejected with PBSE_UNKREQ, then
- *	return 1, else return -1 on other errors.
- *
- * @param[in]	svr  - name of Server to which to send the restart
- * @param[in]	port - port Server would be expecting to receive IM messages
- *
- * @return	int
- * @rtnval  0 - Restart was sent to Server and acknowledged
- * @rtnval  1 - Restart was sent to Server but rejected, fall back to RPP
- * @rtnval -1 - Error in looking up host, connecting, or sending message
- *
- */
-int
-send_restart_tcp(char *svr, unsigned int port)
-{
-	pbs_net_t hostaddr;
-	int rtn;
-	struct batch_reply *reply;
-	int sock;
-	int mode;
-
-	/* first, make sure we have a valid server (host), and ports */
-	if ((hostaddr = get_hostaddr(svr)) == (pbs_net_t)0) {
-		return (-1);
-	}
-
-	mode = B_RESERVED;
-	if (pbs_conf.auth_method == AUTH_MUNGE)
-		mode = B_EXTERNAL|B_SVR;
-
-	sock = client_to_svr(hostaddr, port, mode);
-	if (sock < 0) {
-		return (-1);
-	}
-
-	DIS_tcp_funcs();
-
-	/* send authentication information */
-
-	if (encode_DIS_ReqHdr(sock, PBS_BATCH_MomRestart, "root") ||
-		diswst(sock, mom_host)      ||
-		diswui(sock, pbs_mom_port)  ||
-		encode_DIS_ReqExtend(sock, NULL)) {
-		return (-1);
-	}
-	if (dis_flush(sock)) {
-		return (-1);
-	}
-
-	/* read back the response */
-
-	reply = (struct batch_reply *)malloc(sizeof(struct batch_reply));
-	if (reply == NULL)
-		return (-1);
-	(void)memset(reply, 0, sizeof(struct batch_reply));
-	if (decode_DIS_replyCmd(sock, reply) != 0) {
-		(void)free(reply);
-		return (-1);
-	}
-	dis_reset_buf(sock, DIS_READ_BUF);
-	CLOSESOCKET(sock);
-	rtn = reply->brp_code;
-	PBSD_FreeReply(reply);
-
-	if (rtn == PBSE_NONE) {
-		return (0);	/* restart sent via tcp */
-	} else if (rtn == PBSE_UNKREQ) {
-		return (1);	/* need to fall back to RPP IS_RESTART */
-	}
-	return (-1);
-}
-
-/**
  * @brief	Send a restart message to the Server.
  *
  * @par
  *	Close any existing rpp streams to the server, it is unlikely that
  *	there is one.  Parse the server name from pbs.conf;
  *	Use PBS_SERVER_HOST_NAME if defined, else use PBS_SERVER.
- *	Try sending message via TCP first
- *
- * @see send_restart_tcp()
- *	If that returns 1 or -1, fall back to useing rpp
- * @see send_restart()
  *
  * @return void
  */
@@ -2063,17 +1979,8 @@ send_restart(void)
 		server_stream = -1;
 	}
 
-
 	svr = get_servername(&port);
-	if (pbs_conf.pbs_use_tcp==0 && send_restart_tcp(svr, port) == 0) {
-		(void)sprintf(log_buffer, "Restart sent to server at %s:%d", svr, port);
-		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_NOTICE,
-			msg_daemonname, log_buffer);
-	} else {
-		/* since sending via TCP didn't work, fall back to old rpp */
-		send_restart_rpp(svr, port);
-	}
-
+	send_restart_rpp(svr, port);
 }
 
 /**

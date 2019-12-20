@@ -43,7 +43,6 @@
  *
  *	decode_DIS_CopyFiles
  *	decode_DIS_CopyFiles_Cred
- *	decode_DIS_MomRestart
  *	decode_DIS_replySvr_inner
  *	decode_DIS_replySvr
  *	decode_DIS_replySvrRPP
@@ -248,41 +247,6 @@ decode_DIS_CopyFiles_Cred(int sock, struct batch_request *preq)
 
 	return 0;
 }
-
-/**
- * @brief
- * 		Decode a Mom Restart request from a Mom.
- *		This request is sent from a Mom when she first starts up.
- *		Mom opens a connection to the Server, sends this request and waits for
- *		a reply.
- *		The expected data to be read and decoded into the structure are:
- *		the host name of the Mom and the port on which she listens for TCP.
- *
- * @see
- * 		dis_request_read
- *
- * @param[in] sock - socket of connection from Mom
- * @param[in] preq - pointer to the batch request structure to be filled in
- *
- * @return int
- * @retval 0 - success
- * @retval non-zero - decode failure error from a DIS routine
- */
-int
-decode_DIS_MomRestart(int sock, struct batch_request *preq)
-{
-	int rc;
-	struct rq_momrestart *pmr;
-
-	pmr = &preq->rq_ind.rq_momrestart;
-	if ((rc = disrfst(sock, PBS_MAXHOSTNAME, pmr->rq_momhost)) != 0)
-		return rc;
-	pmr->rq_port = disrui(sock, &rc);
-	if (rc)
-		return rc;
-	return 0;
-}
-
 
 /**
  * @brief
@@ -675,10 +639,6 @@ dis_request_read(int sfds, struct batch_request *request)
 
 		case PBS_BATCH_AuthenResvPort:
 			rc = decode_DIS_AuthenResvPort(sfds, request);
-			break;
-
-		case PBS_BATCH_MomRestart:
-			rc = decode_DIS_MomRestart(sfds, request);
 			break;
 
 		case PBS_BATCH_ModifyResv:

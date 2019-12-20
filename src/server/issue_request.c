@@ -130,25 +130,18 @@ relay_to_mom2(job *pjob, struct batch_request *request,
 	pbs_net_t    momaddr;
 	unsigned int momport;
 	struct work_task *pwt;
-	int prot;
 	mominfo_t *pmom = 0;
 	pbs_list_head	*mom_tasklist_ptr = NULL;
 
 	momaddr = pjob->ji_qs.ji_un.ji_exect.ji_momaddr;
 	momport = pjob->ji_qs.ji_un.ji_exect.ji_momport;
-
-	if (pbs_conf.pbs_use_tcp == 1) {
-		prot = PROT_RPP;
-		pmom = tfind2((unsigned long) momaddr, momport, &ipaddrs);
-		if (!pmom || (((mom_svrinfo_t *) (pmom->mi_data))->msr_state & INUSE_DOWN)) {
-			return (PBSE_NORELYMOM);
-		}
-		mom_tasklist_ptr = &(((mom_svrinfo_t *) (pmom->mi_data))->msr_deferred_cmds);
-	} else {
-		prot = PROT_TCP;
+	pmom = tfind2((unsigned long) momaddr, momport, &ipaddrs);
+	if (!pmom || (((mom_svrinfo_t *) (pmom->mi_data))->msr_state & INUSE_DOWN)) {
+		return (PBSE_NORELYMOM);
 	}
+	mom_tasklist_ptr = &(((mom_svrinfo_t *) (pmom->mi_data))->msr_deferred_cmds);
 
-	conn = svr_connect(momaddr, momport, process_Dreply, ToServerDIS, prot);
+	conn = svr_connect(momaddr, momport, process_Dreply, ToServerDIS, PROT_RPP);
 	if (conn < 0) {
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_REQUEST, LOG_WARNING, "", msg_norelytomom);
 		return (PBSE_NORELYMOM);
@@ -156,12 +149,12 @@ relay_to_mom2(job *pjob, struct batch_request *request,
 
 	request->rq_orgconn = request->rq_conn;	/* save client socket */
 	pbs_errno = 0;
-	rc = issue_Drequest(conn, request, func, &pwt, prot);
+	rc = issue_Drequest(conn, request, func, &pwt, PROT_RPP);
 	if ((rc == 0) && (func != release_req)) {
 		/* work-task entry job related rpp, link to the job's list */
 		append_link(&pjob->ji_svrtask, &pwt->wt_linkobj, pwt);
-		if (prot == PROT_RPP)
-			append_link(mom_tasklist_ptr, &pwt->wt_linkobj2, pwt); /* if rpp, link to mom list as well */
+		/* if rpp, link to mom list as well */
+		append_link(mom_tasklist_ptr, &pwt->wt_linkobj2, pwt);
 	}
 
 	if (ppwt != NULL)

@@ -227,7 +227,6 @@ struct pbs_config
 	char *pbs_mail_host_name;	/* name of host to which to address mail */
 	char *pbs_smtp_server_name;   /* name of SMTP host to which to send mail */
 	char *pbs_output_host_name;	/* name of host to which to stage std out/err */
-	unsigned pbs_use_tcp:1;		/* whether pbs should use TCP instead of RPP */
 	unsigned pbs_use_compression:1;	/* whether pbs should compress communication data */
 	unsigned pbs_use_mcast:1;		/* whether pbs should multicast communication */
 	unsigned pbs_use_ft:1;		/* whether pbs should force use fault tolerant communications */
@@ -270,7 +269,6 @@ extern struct pbs_config pbs_conf;
 #define PBS_CONF_SCHEDULER_SERVICE_PORT	     "PBS_SCHEDULER_SERVICE_PORT"
 #define PBS_CONF_DATA_SERVICE_PORT           "PBS_DATA_SERVICE_PORT"
 #define PBS_CONF_DATA_SERVICE_HOST           "PBS_DATA_SERVICE_HOST"
-#define PBS_CONF_USE_TCP		     "PBS_USE_TCP"
 #define PBS_CONF_USE_COMPRESSION     	     "PBS_USE_COMPRESSION"
 #define PBS_CONF_USE_MCAST		     "PBS_USE_MCAST"
 #define PBS_CONF_FORCE_FT_COMM		     "PBS_FORCE_FT_COMM"

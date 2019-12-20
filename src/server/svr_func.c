@@ -135,7 +135,6 @@
  * 	read_db_svrhost_file()
  * 	replace_db_svrhost_file()
  * 	chk_and_update_db_svrhost()
- * 	set_sched_throughput_mode()
  * 	keepfiles_action()
  * 	removefiles_action()
  *	are_we_primary()
@@ -7202,31 +7201,6 @@ enum failover_state are_we_primary(void)
 		return FAILOVER_SECONDARY;  /* we are the secondary */
 
 	return FAILOVER_CONFIG_ERROR;	    /* cannot be neither */
-}
-
-
-/**
- * @brief
- * 		action routine for the sched's "throughput" attribute
- *
- * @param[in]	pattr	-	attribute being set
- * @param[in]	pobj	-	Object on which attribute is being set
- * @param[in]	actmode	-	the mode of setting, recovery or just alter
- *
- * @return	error code
- * @retval	PBSE_NONE	-	Success
- * @retval	!PBSE_NONE	-	Failure
- *
- */
-int
-set_sched_throughput_mode(attribute *pattr, void *pobj, int actmode)
-{
-	if (actmode == ATR_ACTION_ALTER || actmode == ATR_ACTION_RECOV) {
-		if (pbs_conf.pbs_use_tcp == 0) {
-			return PBSE_BADATVAL;
-		}
-	}
-	return PBSE_NONE;
 }
 
 /* action function for opt_backfill_fuzzy -- only allow the correct values */

@@ -699,7 +699,7 @@ send_job(job *jobp, pbs_net_t hostaddr, int port, int move_type,
 		}
 	}
 
-	if (pbs_conf.pbs_use_tcp == 1 && move_type == MOVE_TYPE_Exec && small_job_files(jobp)) {
+	if (move_type == MOVE_TYPE_Exec && small_job_files(jobp)) {
 		return (send_job_exec(jobp, hostaddr, port, preq));
 	}
 
@@ -1225,4 +1225,3 @@ small_job_files(job* pjob)
 
 	return 1;
 }
-

@@ -6007,7 +6007,7 @@ rm_request(int iochan, int version, int tcp)
 	}
 
 	restrictrm = 0;
-	if (pbs_conf.pbs_use_tcp == 0 && ((port_care && (port >= IPPORT_RESERVED)) || (!addrfind(ipadd)))) {
+	if ((port_care && (port >= IPPORT_RESERVED)) || (!addrfind(ipadd))) {
 		if (bad_restrict(ipadd)) {
 			sprintf(log_buffer, "bad attempt to connect");
 			goto bad;
@@ -6550,14 +6550,6 @@ finish_loop(time_t waittime)
 {
 #ifdef	WIN32
 	time_t	i;
-#endif
-
-	if (pbs_conf.pbs_use_tcp == 0) {
-		/* check for any extra rpp messages */
-		rpp_request(42);
-	}
-
-#ifdef	WIN32
 	/* wait for a request to process or exiting procs */
 	for (i = 0; i < waittime; i++) {
 		wait_action();
@@ -8197,6 +8189,8 @@ main(int argc, char *argv[])
 #endif
 {
 	/* both Win32 and Unix */
+	int rc;
+	char *nodename;
 	struct tpp_config	tpp_conf;
 	int					errflg, c;
 	int					stalone = 0;
@@ -8206,9 +8200,7 @@ main(int argc, char *argv[])
 	unsigned int		serverport;
 	int					recover = 0;
 	time_t				time_state_update = 0;
-	int					tryport;
-	int					rppfd;				/* fd for rm and im comm */
-	int					privfd = -1;		/* fd for sending job info */
+	int					rppfd; /* fd for rm and im comm */
 	double				myla;
 	job					*nxpjob;
 	job					*pjob;
@@ -9311,94 +9303,51 @@ main(int argc, char *argv[])
 			sprintf(log_buffer,
 				"Problem initializing security library (%d)", csret);
 			log_err(-1, "pbsd_main", log_buffer);
-                        exit(3);
-                }
+			exit(3);
+		}
 	}
-	if (pbs_conf.pbs_use_tcp == 1) {
-		int rc;
-		char *nodename;
+	sprintf(log_buffer, "Out of memory");
+	if (pbs_conf.pbs_leaf_name) {
+		char *p;
+		nodename = strdup(pbs_conf.pbs_leaf_name);
 
-		sprintf(log_buffer, "Out of memory");
-		if (pbs_conf.pbs_leaf_name) {
-			char *p;
-			nodename = strdup(pbs_conf.pbs_leaf_name);
-
-			/* reset pbs_leaf_name to only the first leaf name with port */
-			p = strchr(pbs_conf.pbs_leaf_name, ','); /* keep only the first leaf name */
-			if (p)
-				*p = '\0';
-			p = strchr(pbs_conf.pbs_leaf_name, ':'); /* cut out the port */
-			if (p)
-				*p = '\0';
-		} else {
-			nodename = get_all_ips(mom_host, log_buffer, sizeof(log_buffer) - 1);
-		}
-		if (!nodename) {
-			log_err(-1, "pbsd_main", log_buffer);
-			fprintf(stderr, "%s\n", "Unable to determine TPP node name");
-			return (1);
-		}
-
-	    /* set tcp function pointers */
-		set_tpp_funcs(log_tppmsg);
-		rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_rm_port, pbs_conf.pbs_leaf_routers);
-		free(nodename);
-
-		if (rc == -1) {
-			(void) sprintf(log_buffer, "Error setting TPP config");
-			log_event(PBSEVENT_SYSTEM | PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-								LOG_ERR,msg_daemonname, log_buffer);
-			fprintf(stderr, "%s", log_buffer);
-			return (3);
-		}
-
-		tpp_set_app_net_handler(net_down_handler, net_restore_handler);
-
-		if ((rppfd = tpp_init(&tpp_conf)) == -1) {
-			(void) sprintf(log_buffer, "rpp_init failed");
-			log_event(PBSEVENT_SYSTEM | PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-				LOG_ERR, msg_daemonname, log_buffer);
-			fprintf(stderr, "%s", log_buffer);
-			return (3);
-		}
+		/* reset pbs_leaf_name to only the first leaf name with port */
+		p = strchr(pbs_conf.pbs_leaf_name, ','); /* keep only the first leaf name */
+		if (p)
+			*p = '\0';
+		p = strchr(pbs_conf.pbs_leaf_name, ':'); /* cut out the port */
+		if (p)
+			*p = '\0';
 	} else {
-		/* set rpp function pointers */
-		set_rpp_funcs(log_rppfail);
+		nodename = get_all_ips(mom_host, log_buffer, sizeof(log_buffer) - 1);
+	}
+	if (!nodename) {
+		log_err(-1, "pbsd_main", log_buffer);
+		fprintf(stderr, "%s\n", "Unable to determine TPP node name");
+		return (1);
+	}
 
-		if ((rppfd = rpp_bind(pbs_rm_port)) == -1) {
-			log_err(errno, __func__, "rpp_bind");
-#ifdef	WIN32
-			g_dwCurrentState = SERVICE_STOPPED;
-			ss.dwCurrentState = g_dwCurrentState;
-			ss.dwWin32ExitCode = ERROR_NETWORK_BUSY;
-			if (g_ssHandle != 0) SetServiceStatus(g_ssHandle, &ss);
-#endif	/* WIN32 */
-			return (1);
-		}
+	/* set tcp function pointers */
+	set_tpp_funcs(log_tppmsg);
+	rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_rm_port, pbs_conf.pbs_leaf_routers);
+	free(nodename);
 
-		rpp_fd = -1;
-		tryport = IPPORT_RESERVED;
-		while (--tryport > 0) {
-			if ((privfd = rpp_bind(tryport)) != -1)
-				break;
-#ifdef	WIN32
-			errno = WSAGetLastError();
-			if ((errno != WSAEADDRINUSE) && (errno != WSAEADDRNOTAVAIL))
-#else
-			if ((errno != EADDRINUSE) && (errno != EADDRNOTAVAIL))
-#endif	/* WIN32 */
-				break;
-		}
-		if (privfd == -1) {
-			log_err(errno, __func__, "no privileged ports");
-#ifdef	WIN32
-			g_dwCurrentState = SERVICE_STOPPED;
-			ss.dwCurrentState = g_dwCurrentState;
-			ss.dwWin32ExitCode = ERROR_NETWORK_BUSY;
-			if (g_ssHandle != 0) SetServiceStatus(g_ssHandle, &ss);
-#endif	/* WIN32 */
-			return (1);
-		}
+	if (rc == -1) {
+		(void) sprintf(log_buffer, "Error setting TPP config");
+		log_event(PBSEVENT_SYSTEM | PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
+							LOG_ERR,msg_daemonname, log_buffer);
+		fprintf(stderr, "%s", log_buffer);
+		return (3);
+	}
+
+	tpp_set_app_net_handler(net_down_handler, net_restore_handler);
+
+	if ((rppfd = tpp_init(&tpp_conf)) == -1) {
+		(void) sprintf(log_buffer, "rpp_init failed");
+		log_event(PBSEVENT_SYSTEM | PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
+			LOG_ERR, msg_daemonname, log_buffer);
+		fprintf(stderr, "%s", log_buffer);
+		return (3);
 	}
 
 	servername = get_servername(&serverport);
@@ -9655,8 +9604,6 @@ main(int argc, char *argv[])
 	initialize();		/* init RM code */
 #endif
 	(void)add_conn(rppfd, RppComm, (pbs_net_t)0, 0, NULL, rpp_request);
-	if (pbs_conf.pbs_use_tcp == 0)
-		(void)add_conn(privfd, RppComm, (pbs_net_t)0, 0, NULL, rpp_request);
 
 	/* initialize machine dependent polling routines */
 	if ((c = mom_open_poll()) != PBSE_NONE) {
@@ -9785,16 +9732,6 @@ main(int argc, char *argv[])
 	g_dwCurrentState = SERVICE_RUNNING;
 	ss.dwCurrentState = g_dwCurrentState;
 	if (g_ssHandle != 0) SetServiceStatus(g_ssHandle, &ss);
-#endif	/* WIN32 */
-
-	/*
-	 * TPP mode: don't send a restart at startup
-	 * we will send one when we connect to router
-	 */
-	if (pbs_conf.pbs_use_tcp == 0)
-		send_restart();
-
-#ifdef	WIN32
 	/* put here to minimize chance of hanging up or delaying mom startup */
 	initialize();
 #endif	/* WIN32 */
@@ -10023,28 +9960,6 @@ main(int argc, char *argv[])
 		if ((pjob = (job *)GET_NEXT(svr_alljobs)) == NULL)
 			continue;
 
-		if (pbs_conf.pbs_use_tcp == 0)
-			(void)rpp_io(); /* drive io for RPP */
-#if 0
-		while (pjob != NULL) {
-			job	*njob = (job *)GET_NEXT(pjob->ji_alljobs);
-
-			/* see if MS polling has stopped */
-			DBPRT(("%s: polltime %ld\n", pjob->ji_qs.ji_jobid,
-				pjob->ji_polltime))
-			if (pjob->ji_polltime != 0 &&
-				time_now >= (pjob->ji_polltime +
-				MAX_CHECK_POLL_TIME + 20)) {
-				log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_JOB,
-					LOG_INFO, pjob->ji_qs.ji_jobid,
-					"polling stopped");
-				kill_job(pjob, SIGKILL);
-				mom_deljob(pjob);
-			}
-			pjob = njob;
-		}
-#endif	/* polling stopped check */
-
 		/* there are jobs so update status	 */
 		/* if we just got a sample, don't bother */
 		if (time_now > time_last_sample) {
@@ -10090,9 +10005,6 @@ main(int argc, char *argv[])
 					continue;
 				}
 			}
-
-			if (pbs_conf.pbs_use_tcp == 0)
-				(void)rpp_io();
 
 			if (pjob->ji_qs.ji_substate != JOB_SUBSTATE_RUNNING)
 				continue;

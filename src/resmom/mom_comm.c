@@ -831,10 +831,6 @@ close_sisters_mcast(job *pjob)
 int
 is_comm_up(int maturity_time)
 {
-	/* if pbs is not using tpp, communication is deemed as up */
-	if (pbs_conf.pbs_use_tcp == 0)
-		return 1;
-
 	if ((mom_net_up == 1) && ((time_now - mom_net_up_time) > maturity_time))
 		return 1;
 
@@ -2498,19 +2494,9 @@ check_ms(int stream, job *pjob)
 	struct	sockaddr_in	*addr;
 	hnodent			*np;
 
-	addr = rpp_getaddr(stream);
-	if (pbs_conf.pbs_use_tcp == 0) {
-		if (ntohs(addr->sin_port) >= IPPORT_RESERVED) {
-			sprintf(log_buffer,
-				"non-privileged connection from %s", netaddr(addr));
-			log_joberr(-1, __func__, log_buffer, pjob->ji_qs.ji_jobid);
-			rpp_close(stream);
-			return TRUE;
-		}
-	}
 	if (pjob == NULL)
 		return FALSE;
-
+	addr = rpp_getaddr(stream);
 	if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) {
 		log_joberr(-1, __func__, "Mother Superior talking to herself",
 			pjob->ji_qs.ji_jobid);

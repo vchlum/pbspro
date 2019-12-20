@@ -304,15 +304,6 @@ int	   actmode;
 }
 
 int
-set_sched_throughput_mode(pattr, pobj, actmode)
-attribute *pattr;
-void      *pobj;
-int	   actmode;
-{
-	return PBSE_NONE;
-}
-
-int
 action_sched_port(attribute *pattr, void *pobj, int actmode)
 {
 	return 0;
@@ -1397,7 +1388,7 @@ pbs_python_populate_svrattrl_from_file(char *input_file,
 					in_data[0] = '\0';
 					continue;
 				}
-				if (strncmp(obj_name, EVENT_VNODELIST_FAIL_OBJECT, vn_fail_obj_len) == 0) { 
+				if (strncmp(obj_name, EVENT_VNODELIST_FAIL_OBJECT, vn_fail_obj_len) == 0) {
 					rc = add_to_svrattrl_list_sorted(event_vnode_fail_svrattrl, name_str, resc_str, return_internal_value(attr_name, val_str), 0, NULL);
 				} else {
 					rc = add_to_svrattrl_list_sorted(event_vnode_svrattrl, name_str, resc_str, return_internal_value(attr_name, val_str), 0, NULL);
@@ -2294,7 +2285,7 @@ main(int argc, char *argv[], char *envp[])
 		struct python_interpreter_data *interp_data);
 	extern void pbs_python_svr_destroy_interpreter_data(
 		struct python_interpreter_data *interp_data);
-	
+
 	if (set_msgdaemonname(PBS_PYTHON_PROGRAM)) {
 		fprintf(stderr, "Out of memory\n");
 		return 1;

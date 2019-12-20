@@ -967,14 +967,6 @@ dispatch_request(int sfds, struct batch_request *request)
 		case PBS_BATCH_StatusRsc:
 			req_stat_resc(request);
 			break;
-
-		case PBS_BATCH_MomRestart:
-			log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE,
-				LOG_INFO,
-				request->rq_ind.rq_momrestart.rq_momhost,
-				"Mom restarted on host");
-			req_momrestart(request);
-			break;
 #else	/* MOM only functions */
 
 		case PBS_BATCH_CopyFiles:

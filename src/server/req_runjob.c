@@ -1367,10 +1367,6 @@ post_sendmom(struct work_task *pwt)
 
 	if (jobp->ji_prunreq)
 		jobp->ji_prunreq = NULL;	/* set in svr_strtjob2() */
-	else {
-		if (pbs_conf.pbs_use_tcp == 0)
-			return; /* reply must have already been handled, see job_obit */
-	}
 
 	if (!isrpp) {
 		if (WIFEXITED(wstat)) {

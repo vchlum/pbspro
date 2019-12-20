@@ -743,10 +743,8 @@ is_request(int stream, int version)
 		rpp_close(stream);
 		return;
 	}
-	port = ntohs((unsigned short)addr->sin_port);
 	ipaddr = ntohl(addr->sin_addr.s_addr);
-
-	if ((pbs_conf.pbs_use_tcp == 0 && port >= IPPORT_RESERVED) || (!addrfind(ipaddr))) {
+	if (!addrfind(ipaddr)) {
 		sprintf(log_buffer, "bad connect from %s", netaddr(addr));
 		log_err(PBSE_BADHOST, __func__, log_buffer);
 		rpp_close(stream);

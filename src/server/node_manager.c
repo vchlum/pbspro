@@ -1279,20 +1279,16 @@ ping_a_mom(mominfo_t *pmom, int force_hello, int once)
 	}
 
 	if (rpp_flush(psvrmom->msr_stream) == 0) {
-
-		if (pbs_conf.pbs_use_tcp == 1) {
-			/*
-			 * If the message later fails to be delivered, with TPP, the network is deemed broken,
-			 * and the stream would automatically get closed and everything will start afresh.
-			 * It is therefore okay for us to reset INUSE_NEEDS_HELLO_PING here.
-			 *
-			 */
-			if (com == IS_HELLO) {
-				/* reset the INUSE_NEEDS_HELLO_PING, so we don't send repeated hellos */
-				psvrmom->msr_state &= ~INUSE_NEEDS_HELLO_PING;
-			}
+		/*
+		 * If the message later fails to be delivered, with TPP, the network is deemed broken,
+		 * and the stream would automatically get closed and everything will start afresh.
+		 * It is therefore okay for us to reset INUSE_NEEDS_HELLO_PING here.
+		 *
+		 */
+		if (com == IS_HELLO) {
+			/* reset the INUSE_NEEDS_HELLO_PING, so we don't send repeated hellos */
+			psvrmom->msr_state &= ~INUSE_NEEDS_HELLO_PING;
 		}
-
 		return;
 	}
 	ret = DIS_NOCOMMIT;
@@ -3313,61 +3309,53 @@ ping_nodes(struct work_task *ptask)
 	if (!ptask)
 		once = 1; /* not main ping series, just an one shot ping for any new devices */
 
-	if (pbs_conf.pbs_use_tcp == 1) {
-		/*
-		 * If this is configured to talk TCP, then do the
-		 * ping functionality only if tpp_network_up global variable
-		 * to 1. This is set to 1 at pbsd_main by the TPP router connection
-		 * established handler
-		 */
-		if (tpp_network_up == 1) {
-			int mtfd_ishello;
-			int mtfd_isnull;
-			int mtfd_ishello_no_inv;
+	/*
+	 * If this is configured to talk TCP, then do the
+	 * ping functionality only if tpp_network_up global variable
+	 * to 1. This is set to 1 at pbsd_main by the TPP router connection
+	 * established handler
+	 */
+	if (tpp_network_up == 1) {
+		int mtfd_ishello;
+		int mtfd_isnull;
+		int mtfd_ishello_no_inv;
 
-			/* open the tpp mcast channel here */
-			if ((mtfd_ishello = tpp_mcast_open()) == -1) {
-				log_err(-1, __func__, "Failed to open TPP mcast channel for mom pings");
-				return;
-			}
+		/* open the tpp mcast channel here */
+		if ((mtfd_ishello = tpp_mcast_open()) == -1) {
+			log_err(-1, __func__, "Failed to open TPP mcast channel for mom pings");
+			return;
+		}
 
-			/* open the tpp mcast channel here */
-			if ((mtfd_isnull = tpp_mcast_open()) == -1) {
-				tpp_mcast_close(mtfd_ishello);
-				log_err(-1, __func__, "Failed to open TPP mcast channel for mom pings");
-				return;
-			}
+		/* open the tpp mcast channel here */
+		if ((mtfd_isnull = tpp_mcast_open()) == -1) {
+			tpp_mcast_close(mtfd_ishello);
+			log_err(-1, __func__, "Failed to open TPP mcast channel for mom pings");
+			return;
+		}
 
-			/* open the tpp mcast channel here */
-			if ((mtfd_ishello_no_inv = tpp_mcast_open()) == -1) {
-				tpp_mcast_close(mtfd_ishello);
-				tpp_mcast_close(mtfd_isnull);
-				log_err(-1, __func__, "Failed to open TPP mcast channel for mom pings");
-				return;
-			}
-
-			for (i = 0; i < mominfo_array_size; i++) {
-				if (mominfo_array[i]) {
-					ping_a_mom_mcast(mominfo_array[i], 0,
-						mtfd_ishello, mtfd_isnull,
-						mtfd_ishello_no_inv, once);
-				}
-			}
-
-			ping_flush_mcast(mtfd_ishello, IS_HELLO);
-			ping_flush_mcast(mtfd_ishello_no_inv, IS_HELLO_NO_INVENTORY);
-			ping_flush_mcast(mtfd_isnull, IS_NULL);
-
+		/* open the tpp mcast channel here */
+		if ((mtfd_ishello_no_inv = tpp_mcast_open()) == -1) {
 			tpp_mcast_close(mtfd_ishello);
 			tpp_mcast_close(mtfd_isnull);
-			tpp_mcast_close(mtfd_ishello_no_inv);
+			log_err(-1, __func__, "Failed to open TPP mcast channel for mom pings");
+			return;
 		}
-	} else {
+
 		for (i = 0; i < mominfo_array_size; i++) {
 			if (mominfo_array[i]) {
-				ping_a_mom(mominfo_array[i], 0, once);
+				ping_a_mom_mcast(mominfo_array[i], 0,
+					mtfd_ishello, mtfd_isnull,
+					mtfd_ishello_no_inv, once);
 			}
 		}
+
+		ping_flush_mcast(mtfd_ishello, IS_HELLO);
+		ping_flush_mcast(mtfd_ishello_no_inv, IS_HELLO_NO_INVENTORY);
+		ping_flush_mcast(mtfd_isnull, IS_NULL);
+
+		tpp_mcast_close(mtfd_ishello);
+		tpp_mcast_close(mtfd_isnull);
+		tpp_mcast_close(mtfd_ishello_no_inv);
 	}
 
 	if (ptask != NULL)
@@ -4954,8 +4942,6 @@ found:
 								setup_pnames(psrp->vna_val);
 							}
 						}
-						if (pbs_conf.pbs_use_tcp == 0)
-							(void)rpp_io();
 					}
 					/* clear the NODE_UPDATE_VNL on all vnodes for this Mom */
 					/* It was set in update2_to_vnode() */

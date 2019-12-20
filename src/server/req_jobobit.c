@@ -545,10 +545,6 @@ mom_comm(job *pjob, void (*func)(struct work_task *))
 	long t;
 	attribute *peh;
 	struct work_task *pwt;
-	int prot = PROT_TCP;
-
-	if (pbs_conf.pbs_use_tcp == 1)
-		prot = PROT_RPP;
 
 	if (pjob->ji_momhandle < 0) {
 
@@ -572,8 +568,8 @@ mom_comm(job *pjob, void (*func)(struct work_task *))
 			pjob->ji_qs.ji_un.ji_exect.ji_momport,
 			process_Dreply,
 			ToServerDIS,
-			prot);
-		pjob->ji_mom_prot = prot;
+			PROT_RPP);
+		pjob->ji_mom_prot = PROT_RPP;
 
 		if (pjob->ji_momhandle < 0) {
 			char	*operation;

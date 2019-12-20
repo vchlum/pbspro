@@ -500,9 +500,9 @@ pbsd_init(int type)
 	if (sigaction(SIGUSR2, &act, &oact) != 0) {
 		log_err(errno, __func__, "sigaction for USR2");
 		return (2);
-	}	
+	}
 
-#ifdef PBS_UNDOLR_ENABLED	
+#ifdef PBS_UNDOLR_ENABLED
 	act.sa_handler = catch_sigusr1;
 #endif
 	if (sigaction(SIGUSR1, &act, &oact) != 0) {
@@ -626,10 +626,6 @@ pbsd_init(int type)
 						dflt_scheduler = psched;
 
 					}
-					if (pbs_conf.pbs_use_tcp == 0) {
-						/* check if throughput mode is visible in non-TPP mode, if so make it invisible */
-						psched->sch_attr[SCHED_ATR_throughput_mode].at_flags = 0;
-					}
 					psched->pbs_scheduler_port = psched->sch_attr[SCHED_ATR_sched_port].at_val.at_long;
 					psched->pbs_scheduler_addr = get_hostaddr(psched->sch_attr[SCHED_ATR_SchedHost].at_val.at_str);
 				}
@@ -701,7 +697,7 @@ pbsd_init(int type)
 			log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER, LOG_NOTICE,
 				msg_daemonname, log_buffer);
 			printf("%s\n", log_buffer);
-		} 
+		}
 		if (licenses.lb_aval_floating > 0) {
 			sprintf(log_buffer,
 				"Licenses valid for %d Floating hosts",
@@ -2124,4 +2120,3 @@ call_log_license(struct work_task *ptask)
 	ntime = ((ntime+3601)/3600)*3600;
 	(void)set_task(WORK_Timed, ntime, call_log_license, 0);
 }
-
