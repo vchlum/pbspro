@@ -284,7 +284,7 @@ default_next_task(void)
 	/*
 	 * tilwhen is the basic "idle" time if there is nothing pending sooner
 	 * for the Server (timed-events, call scheduler, IO)
-	 * It used to be 10, but that caused a delay of outgoing RPP packets
+	 * It used to be 10, but that caused a delay of outgoing TPP packets
 	 * in some cases, and we don't burn too many extr cycles doing nothing
 	 * if the delay is shorted to 2.
 	 */

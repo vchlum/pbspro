@@ -45,7 +45,7 @@
  *	decode_DIS_CopyFiles_Cred
  *	decode_DIS_replySvr_inner
  *	decode_DIS_replySvr
- *	decode_DIS_replySvrRPP
+ *	decode_DIS_replySvrTPP
  *	dis_request_read
  *	DIS_reply_read
  */
@@ -258,7 +258,7 @@ decode_DIS_CopyFiles_Cred(int sock, struct batch_request *preq)
  *		server svrattrl structures rather than a commands's attrl.
  *
  * @see
- * 		decode_DIS_replySvrRPP
+ * 		decode_DIS_replySvrTPP
  *
  * @param[in] sock - socket connection from which to read reply
  * @param[in,out] reply - batch_reply structure defined in libpbs.h, it must be allocated
@@ -418,15 +418,15 @@ decode_DIS_replySvr(int sock, struct batch_reply *reply)
 
 /**
  * @brief
- * 		decode a Batch Protocol Reply Structure for Server over RPP
+ *	decode a Batch Protocol Reply Structure for Server over TPP
  *
- *  	This routine reads data over RPP by calling decode_DIS_replySvr_inner()
- * 		to read the reply to a batch request. This routine reads the protocol type
- * 		and version before calling decode_DIS_replySvr_inner() to read the rest of
- * 		the reply structure.
+ *	This routine reads data over TPP by calling decode_DIS_replySvr_inner()
+ *	to read the reply to a batch request. This routine reads the protocol type
+ *	and version before calling decode_DIS_replySvr_inner() to read the rest of
+ *	the reply structure.
  *
  * @see
- * 		DIS_reply_read
+ *	DIS_reply_read
  *
  * @param[in] sock - socket connection from which to read reply
  * @param[out] reply - The reply structure to be returned
@@ -436,9 +436,9 @@ decode_DIS_replySvr(int sock, struct batch_reply *reply)
  * @retval !DIS_SUCCESS   - Failure (see dis.h)
  */
 int
-decode_DIS_replySvrRPP(int sock, struct batch_reply *reply)
+decode_DIS_replySvrTPP(int sock, struct batch_reply *reply)
 {
-	/* for rpp header has already been read */
+	/* for tpp header has already been read */
 	return (decode_DIS_replySvr_inner(sock, reply));
 }
 
@@ -471,7 +471,7 @@ dis_request_read(int sfds, struct batch_request *request)
 	int	 proto_ver;
 	int	 rc; 	/* return code */
 
-	if (!request->isrpp)
+	if (!request->istpp)
 		DIS_tcp_funcs();	/* setup for DIS over tcp */
 
 	/* Decode the Request Header, that will tell the request type */
@@ -707,28 +707,27 @@ dis_request_read(int sfds, struct batch_request *request)
 
 /**
  * @brief
- * 		top level function to read and decode DIS based batch reply
+ *	top level function to read and decode DIS based batch reply
  *
- *  	Calls decode_DIS_replySvrRPP in case of RPP and decode_DIS_replySvr
- *  	in case of TCP to read the reply
+ *	Calls decode_DIS_replySvrTPP in case of TPP and decode_DIS_replySvr
+ *	in case of TCP to read the reply
  *
  * @see
- *		read_reg_reply, process_Dreply and process_DreplyRPP.
+ *	read_reg_reply, process_Dreply and process_DreplyTPP.
  *
  * @param[in] sock - socket connection from which to read reply
  * @param[out] reply - The reply structure to be returned
- * @param[in] rpp - Whether to read over tcp or rpp
+ * @param[in] prot - PROT_TCP pr PROT_TPP
  *
  * @return Error code
  * @retval DIS_SUCCESS(0) - Success
  * @retval !DIS_SUCCESS   - Failure (see dis.h)
  */
 int
-DIS_reply_read(int sock, struct batch_reply *preply, int rpp)
+DIS_reply_read(int sock, struct batch_reply *preply, int prot)
 {
-	if (rpp)
-		return (decode_DIS_replySvrRPP(sock, preply));
-
+	if (prot == PROT_TPP)
+		return (decode_DIS_replySvrTPP(sock, preply));
 
 	DIS_tcp_funcs();
 	return  (decode_DIS_replySvr(sock, preply));

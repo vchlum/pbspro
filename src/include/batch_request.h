@@ -332,9 +332,9 @@ struct batch_request {
 	char	  rq_host[PBS_MAXHOSTNAME+1]; /* name of host sending request */
 	void  	 *rq_extra;	/* optional ptr to extra info		*/
 	char	 *rq_extend;	/* request "extension" data		*/
-	int	 isrpp;		/* is this message from rpp stream      */
-	int	 rpp_ack;	/* send acks for this? */
-	char	 *rppcmd_msgid; /* msg id with rpp commands */
+	int	 istpp;		/* is this message from tpp stream      */
+	int	 tpp_tck;	/* send acks for this? */
+	char	 *tppcmd_msgid; /* msg id with tpp commands */
 
 	struct batch_reply  rq_reply;	  /* the reply area for this request */
 
@@ -380,13 +380,13 @@ struct batch_request {
 };
 
 
-extern struct batch_request *alloc_br(int type);
+extern struct batch_request *alloc_br(int);
 extern void  reply_ack(struct batch_request *);
-extern void  req_reject(int code, int aux, struct batch_request *);
-extern void  req_reject_msg(int code, int aux, struct batch_request *, int istcp);
-extern void  reply_badattr(int code, int aux, svrattrl *, struct batch_request *);
-extern void  reply_badattr_msg(int code, int aux, svrattrl *, struct batch_request *, int);
-extern int   reply_text(struct batch_request *, int code, char *text);
+extern void  req_reject(int, int, struct batch_request *);
+extern void  req_reject_msg(int, int, struct batch_request *, int);
+extern void  reply_badattr(int, int, svrattrl *, struct batch_request *);
+extern void  reply_badattr_msg(int, int, svrattrl *, struct batch_request *, int);
+extern int   reply_text(struct batch_request *, int, char *);
 extern int   reply_send(struct batch_request *);
 extern int   reply_jobid(struct batch_request *, char *, int);
 extern int   reply_jobid_msg(struct batch_request *, char *, int, int);
@@ -397,90 +397,88 @@ extern int   isode_request_read(int, struct batch_request *);
 extern void  req_stat_job(struct batch_request *);
 extern void  req_stat_resv(struct batch_request *);
 extern void  req_stat_resc(struct batch_request *);
-extern void  req_rerunjob(struct batch_request *req);
-extern void  arrayfree(char **array);
+extern void  req_rerunjob(struct batch_request *);
+extern void  arrayfree(char **);
 
 #ifdef	PBS_NET_H
 extern int   authenticate_user(struct batch_request *, conn_t *);
 #endif
 
 #ifndef PBS_MOM
-extern void  req_authenResvPort(struct batch_request *req);
-extern void  req_confirmresv(struct batch_request *req);
-extern void  req_connect(struct batch_request *req);
-extern void  req_defschedreply(struct batch_request *req);
-extern void  req_locatejob(struct batch_request *req);
-extern void  req_manager(struct batch_request *req);
-extern void  req_movejob(struct batch_request *req);
-extern void  req_register(struct batch_request *req);
-extern void  req_releasejob(struct batch_request *req);
-extern void  req_rescq(struct batch_request *req);
-extern void  req_runjob(struct batch_request *req);
-extern void  req_selectjobs(struct batch_request *req);
-extern void  req_stat_que(struct batch_request *req);
-extern void  req_stat_svr(struct batch_request *req);
-extern void  req_stat_sched(struct batch_request *req);
-extern void  req_trackjob(struct batch_request *req);
-extern void  req_stat_rsc(struct batch_request *req);
-extern void  req_preemptjobs(struct batch_request *req);
+extern void  req_authenResvPort(struct batch_request *);
+extern void  req_confirmresv(struct batch_request *);
+extern void  req_connect(struct batch_request *);
+extern void  req_defschedreply(struct batch_request *);
+extern void  req_locatejob(struct batch_request *);
+extern void  req_manager(struct batch_request *);
+extern void  req_movejob(struct batch_request *);
+extern void  req_register(struct batch_request *);
+extern void  req_releasejob(struct batch_request *);
+extern void  req_rescq(struct batch_request *);
+extern void  req_runjob(struct batch_request *);
+extern void  req_selectjobs(struct batch_request *);
+extern void  req_stat_que(struct batch_request *);
+extern void  req_stat_svr(struct batch_request *);
+extern void  req_stat_sched(struct batch_request *);
+extern void  req_trackjob(struct batch_request *);
+extern void  req_stat_rsc(struct batch_request *);
+extern void  req_preemptjobs(struct batch_request *);
 #else
-extern void  req_cpyfile(struct batch_request *req);
-extern void  req_delfile(struct batch_request *req);
-extern void  req_copy_hookfile(struct batch_request *req);
-extern void  req_del_hookfile(struct batch_request *req);
+extern void  req_cpyfile(struct batch_request *);
+extern void  req_delfile(struct batch_request *);
+extern void  req_copy_hookfile(struct batch_request *);
+extern void  req_del_hookfile(struct batch_request *);
 #if defined(PBS_SECURITY) && (PBS_SECURITY == KRB5)
-extern void req_cred(struct batch_request *preq);
+extern void req_cred(struct batch_request *);
 #endif
 #endif
 
 /* PBS Batch Request Decode/Encode routines */
 
-extern int decode_DIS_AuthenResvPort(int socket, struct batch_request *);
-extern int decode_DIS_AuthExternal(int socket, struct batch_request *);
-extern int decode_DIS_CopyFiles(int socket, struct batch_request *);
-extern int decode_DIS_CopyFiles_Cred(int socket, struct batch_request *);
-extern int decode_DIS_JobCred(int socket, struct batch_request *);
-extern int decode_DIS_UserCred(int socket, struct batch_request *);
-extern int decode_DIS_UserMigrate(int socket, struct batch_request *);
-extern int decode_DIS_JobFile(int socket, struct batch_request *);
-extern int decode_DIS_CopyHookFile(int socket, struct batch_request *);
-extern int decode_DIS_DelHookFile(int socket, struct batch_request *);
-extern int decode_DIS_JobObit(int socket, struct batch_request *);
-extern int decode_DIS_Manage(int socket, struct batch_request *);
-extern int decode_DIS_MoveJob(int socket, struct batch_request *);
-extern int decode_DIS_MessageJob(int socket, struct batch_request *);
-extern int decode_DIS_ModifyResv(int socket, struct batch_request *);
-extern int decode_DIS_PySpawn(int socket, struct batch_request *);
-extern int decode_DIS_QueueJob(int socket, struct batch_request *);
-extern int decode_DIS_Register(int socket, struct batch_request *);
-extern int decode_DIS_RelnodesJob(int socket, struct batch_request *);
-extern int decode_DIS_ReqExtend(int socket, struct batch_request *);
-extern int decode_DIS_ReqHdr(int socket, struct batch_request *, int *tp, int *pv);
-extern int decode_DIS_Rescl(int socket, struct batch_request *);
-extern int decode_DIS_Rescq(int socket, struct batch_request *);
-extern int decode_DIS_Run(int socket, struct batch_request *);
-extern int decode_DIS_ShutDown(int socket, struct batch_request *);
-extern int decode_DIS_SignalJob(int socket, struct batch_request *);
-extern int decode_DIS_Status(int socket, struct batch_request *);
-extern int decode_DIS_TrackJob(int socket, struct batch_request *);
-extern int decode_DIS_replySvr(int socket, struct batch_reply *);
-extern int decode_DIS_svrattrl(int socket, pbs_list_head *);
-extern int decode_DIS_Cred(int socket, struct batch_request *);
+extern int decode_DIS_AuthenResvPort(int, struct batch_request *);
+extern int decode_DIS_AuthExternal(int, struct batch_request *);
+extern int decode_DIS_CopyFiles(int, struct batch_request *);
+extern int decode_DIS_CopyFiles_Cred(int, struct batch_request *);
+extern int decode_DIS_JobCred(int, struct batch_request *);
+extern int decode_DIS_UserCred(int, struct batch_request *);
+extern int decode_DIS_UserMigrate(int, struct batch_request *);
+extern int decode_DIS_JobFile(int, struct batch_request *);
+extern int decode_DIS_CopyHookFile(int, struct batch_request *);
+extern int decode_DIS_DelHookFile(int, struct batch_request *);
+extern int decode_DIS_Manage(int, struct batch_request *);
+extern int decode_DIS_MoveJob(int, struct batch_request *);
+extern int decode_DIS_MessageJob(int, struct batch_request *);
+extern int decode_DIS_ModifyResv(int, struct batch_request *);
+extern int decode_DIS_PySpawn(int, struct batch_request *);
+extern int decode_DIS_QueueJob(int, struct batch_request *);
+extern int decode_DIS_Register(int, struct batch_request *);
+extern int decode_DIS_RelnodesJob(int, struct batch_request *);
+extern int decode_DIS_ReqExtend(int, struct batch_request *);
+extern int decode_DIS_ReqHdr(int, struct batch_request *, int *,  int *);
+extern int decode_DIS_Rescl(int, struct batch_request *);
+extern int decode_DIS_Rescq(int, struct batch_request *);
+extern int decode_DIS_Run(int, struct batch_request *);
+extern int decode_DIS_ShutDown(int, struct batch_request *);
+extern int decode_DIS_SignalJob(int, struct batch_request *);
+extern int decode_DIS_Status(int, struct batch_request *);
+extern int decode_DIS_TrackJob(int, struct batch_request *);
+extern int decode_DIS_replySvr(int, struct batch_reply *);
+extern int decode_DIS_svrattrl(int, pbs_list_head *);
+extern int decode_DIS_Cred(int, struct batch_request *);
 
-extern int encode_DIS_failover(int socket, struct batch_request *);
-extern int encode_DIS_CopyFiles(int socket, struct batch_request *);
-extern int encode_DIS_CopyFiles_Cred(int socket, struct batch_request *);
-extern int encode_DIS_JobObit(int socket, struct batch_request *);
-extern int encode_DIS_Register(int socket, struct batch_request *);
-extern int encode_DIS_TrackJob(int socket, struct batch_request *);
-extern int encode_DIS_reply(int socket, struct batch_reply *);
-extern int encode_DIS_replyRPP(int socket, char *, struct batch_reply *);
-extern int encode_DIS_svrattrl(int socket, svrattrl *);
-extern int encode_DIS_Cred(int socket, char *, char *, int type, char *, size_t size, long validity);
+extern int encode_DIS_failover(int, struct batch_request *);
+extern int encode_DIS_CopyFiles(int, struct batch_request *);
+extern int encode_DIS_CopyFiles_Cred(int, struct batch_request *);
+extern int encode_DIS_Register(int, struct batch_request *);
+extern int encode_DIS_TrackJob(int, struct batch_request *);
+extern int encode_DIS_reply(int, struct batch_reply *);
+extern int encode_DIS_replyTPP(int, char *, struct batch_reply *);
+extern int encode_DIS_svrattrl(int, svrattrl *);
+extern int encode_DIS_Cred(int, char *, char *, int, char *, size_t, long);
 
-extern int dis_request_read(int socket, struct batch_request *);
-extern int dis_reply_read(int socket, struct batch_reply *, int rpp);
-extern int decode_DIS_PreemptJobs(int socket, struct batch_request *);
+extern int dis_request_read(int, struct batch_request *);
+extern int dis_reply_read(int, struct batch_reply *, int);
+extern int decode_DIS_PreemptJobs(int, struct batch_request *);
 
 #ifdef	__cplusplus
 }

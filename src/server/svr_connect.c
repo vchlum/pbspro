@@ -110,7 +110,7 @@ extern sigset_t		 allsigs;		/* see pbsd_main.c */
  * @param[in]   func - pointer to function
  * @param[in]   cntype - indicates whether a connection table entry is in
  *                  use or is free
- * @param[in]   prot    - Connect over RPP or over TCP?
+ * @param[in]   prot - PROT_TCP or PROT_TPP
  *
  * @return	int
  * @retval	>=0	: connection handle returned on success. Note that a value
@@ -142,7 +142,7 @@ svr_connect(pbs_net_t hostaddr, unsigned int port, void (*func)(int), enum conn_
 		}
 	}
 
-	if (prot == PROT_RPP) {
+	if (prot == PROT_TPP) {
 		if (!pmom) {
 			pbs_errno = PBSE_SYSTEM;
 			return (PBS_NET_RC_RETRY);
@@ -261,8 +261,9 @@ svr_disconnect_with_wait_option(int sock, int wait)
 		return ;
 	if (pbs_client_thread_lock_connection(sock) != 0)
 		return;
-	DIS_tcp_funcs();
-	if ((encode_DIS_ReqHdr(sock, PBS_BATCH_Disconnect, pbs_current_user) == 0) && (dis_flush(sock) == 0)) {
+
+	if ((encode_DIS_ReqHdr(sock, PBS_BATCH_Disconnect, pbs_current_user, PROT_TCP, NULL) == 0) &&
+		(dis_flush(sock) == 0)) {
 		conn_t *conn = get_conn(sock);
 
 		/* if no error, will be closed when process_request */

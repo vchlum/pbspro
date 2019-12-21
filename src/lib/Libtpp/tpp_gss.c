@@ -46,7 +46,7 @@
 #include <unistd.h>
 #include <gssapi.h>
 
-#include "rpp.h"
+#include "tpp.h"
 
 #include "libutil.h"
 

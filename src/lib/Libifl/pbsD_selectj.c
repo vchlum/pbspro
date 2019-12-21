@@ -172,16 +172,11 @@ __pbs_selstat(int c, struct attropl *attrib, struct attrl   *rattrib, char *exte
  *
  */
 static int
-PBSD_select_put(int c, int type, struct attropl *attrib,
-			struct attrl *rattrib, char *extend)
+PBSD_select_put(int c, int type, struct attropl *attrib, struct attrl *rattrib, char *extend)
 {
 	int rc;
 
-	/* setup DIS support routines for following DIS calls */
-
-	DIS_tcp_funcs();
-
-	if ((rc = encode_DIS_ReqHdr(c, type, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(c, type, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = encode_DIS_attropl(c, attrib)) ||
 		(rc = encode_DIS_attrl(c, rattrib))  ||
 		(rc = encode_DIS_ReqExtend(c, extend))) {

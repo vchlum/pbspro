@@ -56,49 +56,6 @@
 #include "libpbs.h"
 #include "dis.h"
 
-
-/**
- * @brief read a batch reply from the given socket
- *
- * @param[in] sock - The socket fd to read from
- * @param[out] rc  - Return DIS error code
- *
- * @return Batch reply structure
- * @retval  !NULL - Success
- * @retval   NULL - Failure
- *
- */
-struct batch_reply *
-PBSD_rdrpy_sock(int sock, int *rc)
-{
-	struct batch_reply *reply;
-	time_t old_timeout;
-
-	*rc = DIS_SUCCESS;
-	/* clear any prior error message */
-	if ((reply = (struct batch_reply *)malloc(sizeof(struct batch_reply))) == 0) {
-		pbs_errno = PBSE_SYSTEM;
-		return NULL;
-	}
-	(void)memset(reply, 0, sizeof(struct batch_reply));
-
-	DIS_tcp_funcs();
-	old_timeout = pbs_tcp_timeout;
-	if (pbs_tcp_timeout < PBS_DIS_TCP_TIMEOUT_LONG)
-		pbs_tcp_timeout = PBS_DIS_TCP_TIMEOUT_LONG;
-
-	if ((*rc = decode_DIS_replyCmd(sock, reply)) != 0) {
-		(void)free(reply);
-		pbs_errno = PBSE_PROTOCOL;
-		return NULL;
-	}
-	dis_reset_buf(sock, DIS_READ_BUF);
-	pbs_tcp_timeout = old_timeout;
-
-	pbs_errno = reply->brp_code;
-	return reply;
-}
-
 /**
  * @brief read a batch reply from the given connecction index
  *
@@ -113,27 +70,39 @@ PBSD_rdrpy(int c)
 {
 	int rc;
 	struct batch_reply *reply;
+	time_t old_timeout;
+
+	DIS_tcp_funcs();
 
 	/* clear any prior error message */
-
 	if (set_conn_errtxt(c, NULL) != 0) {
 		pbs_errno = PBSE_SYSTEM;
 		return NULL;
 	}
-	reply = PBSD_rdrpy_sock(c, &rc);
-	if (reply == NULL) {
-		if (set_conn_errno(c, PBSE_PROTOCOL) != 0) {
-			pbs_errno = PBSE_SYSTEM;
-			return NULL;
-		}
-		if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {
-			pbs_errno = PBSE_SYSTEM;
-			return NULL;
-		}
+
+	rc = DIS_SUCCESS;
+	if ((reply = (struct batch_reply *)calloc(1, sizeof(struct batch_reply))) == NULL) {
+		pbs_errno = PBSE_SYSTEM;
 		return NULL;
 	}
+
+	old_timeout = pbs_tcp_timeout;
+	if (pbs_tcp_timeout < PBS_DIS_TCP_TIMEOUT_LONG)
+		pbs_tcp_timeout = PBS_DIS_TCP_TIMEOUT_LONG;
+
+	if ((rc = decode_DIS_replyCmd(c, reply)) != 0) {
+		(void)free(reply);
+		pbs_errno = PBSE_PROTOCOL;
+		return NULL;
+	}
+
+	dis_reset_buf(c, DIS_READ_BUF);
+	pbs_tcp_timeout = old_timeout;
+	pbs_errno = reply->brp_code;
+
 	if (set_conn_errno(c, reply->brp_code) != 0) {
 		pbs_errno = reply->brp_code;
+		PBSD_FreeReply(reply);
 		return NULL;
 	}
 	pbs_errno = reply->brp_code;
@@ -141,6 +110,7 @@ PBSD_rdrpy(int c)
 	if (reply->brp_choice == BATCH_REPLY_CHOICE_Text) {
 		if (reply->brp_un.brp_txt.brp_str != NULL) {
 			if (set_conn_errtxt(c, reply->brp_un.brp_txt.brp_str) != 0) {
+				PBSD_FreeReply(reply);
 				pbs_errno = PBSE_SYSTEM;
 				return NULL;
 			}
@@ -155,10 +125,8 @@ PBSD_rdrpy(int c)
  *	Any additional allocated substructures pointed to from the
  *	reply structure are freed, then the base struture itself is gone.
  */
-
 void
-PBSD_FreeReply(reply)
-struct batch_reply *reply;
+PBSD_FreeReply(struct batch_reply *reply)
 {
 	struct brp_select   *psel;
 	struct brp_select   *pselx;

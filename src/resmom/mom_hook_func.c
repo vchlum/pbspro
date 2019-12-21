@@ -81,7 +81,7 @@
 #include "hook.h"
 #include "pbs_reliable.h"
 #include "pbs_version.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "dis.h"
 
 

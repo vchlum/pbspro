@@ -141,11 +141,7 @@ PBS_resc(int c, int reqtype, char **rescl, int ct, pbs_resource_t rh)
 {
 	int rc;
 
-	/* setup DIS support routines for following DIS calls */
-
-	DIS_tcp_funcs();
-
-	if ((rc = encode_DIS_ReqHdr(c, reqtype, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(c, reqtype, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = encode_DIS_Resc(c, rescl, ct, rh)) ||
 		(rc = encode_DIS_ReqExtend(c, NULL))) {
 		if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {

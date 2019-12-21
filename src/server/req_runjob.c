@@ -1350,7 +1350,7 @@ post_sendmom(struct work_task *pwt)
 	int 	wstat = pwt->wt_aux;
 	job 	*jobp = (job *) pwt->wt_parm2;
 	struct 	batch_request *preq = (struct batch_request *) pwt->wt_parm1;
-	int 	isrpp = pwt->wt_aux2;
+	int 	istpp = pwt->wt_aux2;
 	struct	batch_reply *reply = (struct batch_reply *) pwt->wt_parm3;
 	char	dest_host[PBS_MAXROUTEDEST + 1];
 	char	hook_name[PBS_HOOK_NAME_SIZE + 1] = {'\0'};
@@ -1368,7 +1368,7 @@ post_sendmom(struct work_task *pwt)
 	if (jobp->ji_prunreq)
 		jobp->ji_prunreq = NULL;	/* set in svr_strtjob2() */
 
-	if (!isrpp) {
+	if (!istpp) {
 		if (WIFEXITED(wstat)) {
 			r = WEXITSTATUS(wstat);
 		} else if (WIFSIGNALED(wstat)) {
@@ -1420,7 +1420,7 @@ post_sendmom(struct work_task *pwt)
 		}
 
 	} else {
-		/* in case of rpp, the pbs_errno is set in wstat, based
+		/* in case of tpp, the pbs_errno is set in wstat, based
 		 * on which we determine value of r
 		 */
 		switch (wstat) {
@@ -1452,8 +1452,8 @@ post_sendmom(struct work_task *pwt)
 			reject_msg = reply->brp_un.brp_txt.brp_str;
 
 		/* the above reject_msg should never be freed within this function
-		 * since it will be freed by the caller process_DreplyRPP() in the
-		 * case of a RPP based job send
+		 * since it will be freed by the caller process_DreplyTPP() in the
+		 * case of a TPP based job send
 		 */
 
 		if (r != SEND_JOB_OK) {
@@ -1659,8 +1659,8 @@ post_sendmom(struct work_task *pwt)
 			break;
 	}
 
-	if (!isrpp && reject_msg != NULL)
-		free(reject_msg); /* free this only in case of non-rpp since it was locally allocated */
+	if (!istpp && reject_msg != NULL)
+		free(reject_msg); /* free this only in case of non-tpp since it was locally allocated */
 
 	return;
 }

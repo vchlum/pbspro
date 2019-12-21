@@ -83,11 +83,7 @@ __pbs_orderjob(int c, char *job1, char *job2, char *extend)
 	if (pbs_client_thread_lock_connection(c) != 0)
 		return pbs_errno;
 
-	/* setup DIS support routines for following DIS calls */
-
-	DIS_tcp_funcs();
-
-	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_OrderJob, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_OrderJob, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = encode_DIS_MoveJob(c, job1, job2)) ||
 		(rc = encode_DIS_ReqExtend(c, extend))) {
 		if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {

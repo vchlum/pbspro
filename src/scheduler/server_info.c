@@ -118,7 +118,7 @@
 #include <pbs_ifl.h>
 #include <pbs_error.h>
 #include <log.h>
-#include <rpp.h>
+#include <tpp.h>
 #include <pbs_share.h>
 #include "server_info.h"
 #include "constant.h"

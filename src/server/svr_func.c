@@ -176,7 +176,7 @@
 #include "sched_cmds.h"
 #include "ticket.h"
 #include "pbs_nodes.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "pbs_license.h"
 #include "pbs_share.h"
 #include "pbs_entlim.h"
@@ -6345,7 +6345,7 @@ start_vnode_provisioning(struct prov_vnode_info * prov_vnode_info)
 	}
 	else if (pid == 0) {	/* child process */
 		alarm(0);
-		/* standard rpp closure and net close */
+		/* standard tpp closure and net close */
 		net_close(-1);
 		tpp_terminate();
 

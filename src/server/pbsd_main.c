@@ -45,12 +45,11 @@
  * 	net_down_handler()
  * 	go_to_background()
  * 	decrypt_pwd()
- * 	do_rpp()
- * 	rpp_request()
+ * 	do_tpp()
+ * 	tpp_request()
  * 	build_path()
  * 	pbs_close_stdfiles()
  * 	clear_exec_vnode()
- * 	log_rppfail()
  * 	make_server_auto_restart()
  * 	reap_child()
  * 	can_schedule()
@@ -120,7 +119,7 @@
 #include "tracking.h"
 #include "acct.h"
 #include "sched_cmds.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "dis.h"
 #include "libsec.h"
 #include "pbs_version.h"
@@ -404,15 +403,15 @@ go_to_background()
 
 /**
  * @brief
- * 		Read a RPP message from a stream.  Only one kind of message
+ * 		Read a TPP message from a stream.  Only one kind of message
  * 		is expected -- Inter Server requests from MOM's.
  *
- * @param[in]	stream	- sream from which RPP message is read.
+ * @param[in]	stream	- sream from which TPP message is read.
  *
  * @return	void
  */
 void
-do_rpp(int stream)
+do_tpp(int stream)
 {
 	int			ret, proto, version;
 	void			is_request(int, int);
@@ -448,22 +447,22 @@ do_rpp(int stream)
 
 /**
  * @brief
- * 		Read the stream using tpp_poll and invoke do_rpp using that stream.
+ * 		Read the stream using tpp_poll and invoke do_tpp using that stream.
  *
  * @param[in]	fd	- not used.
  *
  * @return	void
  */
 void
-rpp_request(int fd)
+tpp_request(int fd)
 {
 	int	iloop;
 	int	rpp_max_pkt_check = RPP_MAX_PKT_CHECK_DEFAULT;
 
 	/*
-	 * Interleave RPP processing with batch request processing.
+	 * Interleave TPP processing with batch request processing.
 	 * Certain things like hook/short-job propagation can generate a
-	 * huge amount of RPP traffic that can make batch processing
+	 * huge amount of TPP traffic that can make batch processing
 	 * appear sluggish if not interleaved.
 	 *
 	 */
@@ -479,7 +478,7 @@ rpp_request(int fd)
 		}
 		if (stream == -2)
 			break;
-		do_rpp(stream);
+		do_tpp(stream);
 	}
 	return;
 }
@@ -603,19 +602,6 @@ clear_exec_vnode()
 		}
 	}
 }
-/**
- * @brief
- *		log details in case of an rpp failure
- *
- * @param[in]	mess    - The log message
- *
- */
-void
-log_rppfail(char *mess)
-{
-	log_event(PBSEVENT_DEBUG, LOG_DEBUG,
-		PBS_EVENTCLASS_SERVER, "rpp", mess);
-}
 
 /**
  * @brief
@@ -694,7 +680,7 @@ main(int argc, char **argv)
 	int			are_primary;
 	int			c, rc;
 	int			i;
-	int			rppfd;		/* fd to receive is HELLO's */
+	int			tppfd;		/* fd to receive is HELLO's */
 	struct			tpp_config tpp_conf;
 	char			lockfile[MAXPATHLEN+1];
 	char			**origevp;
@@ -1503,14 +1489,14 @@ try_db_again:
 	tpp_set_app_net_handler(net_down_handler, net_restore_handler);
 	tpp_conf.node_type = TPP_LEAF_NODE_LISTEN; /* server needs to know about all CTL LEAVE messages */
 
-	if ((rppfd = tpp_init(&tpp_conf)) == -1) {
+	if ((tppfd = tpp_init(&tpp_conf)) == -1) {
 		log_err(-1, msg_daemonname, "tpp_init failed");
 		fprintf(stderr, "%s", log_buffer);
 		stop_db();
 		return (3);
 	}
 
-	(void)add_conn(rppfd,  RppComm, (pbs_net_t)0, 0, NULL, rpp_request);
+	(void)add_conn(tppfd,  TppComm, (pbs_net_t)0, 0, NULL, tpp_request);
 
 	/* record the fact that the Secondary is up and active (running) */
 

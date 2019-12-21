@@ -98,7 +98,7 @@
 #include	"pbs_error.h"
 #include	"log.h"
 #include	"net_connect.h"
-#include	"rpp.h"
+#include	"tpp.h"
 #include	"dis.h"
 #include	"resmon.h"
 #include	"batch_request.h"
@@ -5932,11 +5932,11 @@ bad_restrict(u_long ipadd)
 /**
  * @brief
  *	Process a request for the resource monitor.  The i/o
- *	will take place using DIS over a tcp fd or an rpp stream.
+ *	will take place using DIS over a tcp fd or an tpp stream.
  *
  * @param[in] iochan - i/o channel to indicate stream or fd
  * @param[in] version - protocol version
- * @param[in] tcp - flag for tcp 0 or 1
+ * @param[in] prot - PROT_TCP or PROT_TPP
  *
  * @return int
  * @retval	0	Success
@@ -5945,7 +5945,7 @@ bad_restrict(u_long ipadd)
  */
 
 int
-rm_request(int iochan, int version, int tcp)
+rm_request(int iochan, int version, int prot)
 {
 	char			name[256];
 	static char		*output = NULL;
@@ -5971,7 +5971,7 @@ rm_request(int iochan, int version, int tcp)
 		output_size = BUFSIZ;
 	}
 	(void)memset(output, 0, output_size);
-	if (tcp) {
+	if (prot == PROT_TCP) {
 		conn_t *conn = get_conn(iochan);
 
 		if (!conn) {
@@ -5988,8 +5988,7 @@ rm_request(int iochan, int version, int tcp)
 		port = conn->cn_port;
 		close_io = close_conn;
 		flush_io = dis_flush;
-	}
-	else {
+	} else {
 		addr = tpp_getaddr(iochan);
 		if (addr == NULL) {
 			sprintf(log_buffer, "Sender unknown");
@@ -6007,7 +6006,7 @@ rm_request(int iochan, int version, int tcp)
 	}
 
 	restrictrm = 0;
-	if ((port_care && (port >= IPPORT_RESERVED)) || (!addrfind(ipadd))) {
+	if ((prot == PROT_TCP && port_care && (port >= IPPORT_RESERVED)) || (!addrfind(ipadd))) {
 		if (bad_restrict(ipadd)) {
 			sprintf(log_buffer, "bad attempt to connect");
 			goto bad;
@@ -6218,7 +6217,7 @@ bad:
 	 ** to be initialized. So, Initialize accordingly before use.
 	 */
 	if (close_io == NULL) {
-		close_io = (tcp) ?(close_conn):((void (*)(int))tpp_close);
+		close_io = (prot == PROT_TCP) ?(close_conn):((void (*)(int))tpp_close);
 	}
 
 	close_io(iochan);
@@ -6227,16 +6226,16 @@ bad:
 
 /**
  * @brief
- *	Read a RPP message from a stream, figure out if it is a
+ *	Read a TPP message from a stream, figure out if it is a
  *	Resource Monitor request or an InterMom message.
  *
- * @param[in] stream - rpp msg
+ * @param[in] stream - tpp stream
  *
  * @return Void
  *
  */
 void
-do_rpp(int stream)
+do_tpp(int stream)
 {
 	int			ret, proto, version;
 	void	im_request	(int stream, int version);
@@ -6260,7 +6259,7 @@ do_rpp(int stream)
 	switch (proto) {
 		case	RM_PROTOCOL:
 			DBPRT(("%s: got a resource monitor request\n", __func__))
-			if (rm_request(stream, version, 0) == 0)
+			if (rm_request(stream, version, PROT_TPP) == 0)
 				tpp_eom(stream);
 			break;
 
@@ -6281,26 +6280,23 @@ do_rpp(int stream)
 	}
 }
 
-/* ARGSUSED */
-
 /**
  * @brief
- *	wrapper function for do_rpp
+ *	wrapper function for do_tpp
  *
  * @param[in] fd - file descriptor
  *
  * @return Void
  *
  */
-#define MAX_RPP_LOOPS 3
-/* Reducing rpp request process for a minimum of 3 times to interleave other connections */
 void
-rpp_request(int fd)
+tpp_request(int fd)
 {
 	int	stream;
 	int	i;
-	/* To reduce rpp process storm reducing max do_rpp processing to 3 times */
-	for (i=0 ; i < MAX_RPP_LOOPS ; i++) {
+
+	/* To reduce tpp process storm reducing max do_tpp processing to 3 times */
+	for (i=0 ; i < 3 ; i++) {
 		if ((stream = tpp_poll()) == -1) {
 #ifdef	WIN32
 			if (errno != 10054)
@@ -6310,7 +6306,7 @@ rpp_request(int fd)
 		}
 		if (stream == -2)
 			break;
-		do_rpp(stream);
+		do_tpp(stream);
 	}
 }
 
@@ -6361,7 +6357,7 @@ do_tcp(int fd)
 		case	RM_PROTOCOL:
 			DBPRT(("%s: got a resource monitor request\n", __func__))
 			pbs_tcp_timeout = 0;
-			ret = rm_request(fd, version, 1);
+			ret = rm_request(fd, version, PROT_TCP);
 			pbs_tcp_timeout = PBS_DIS_TCP_TIMEOUT_SHORT;
 			break;
 
@@ -8058,23 +8054,6 @@ badguy:
 #endif /* localmod 011 */
 }
 
-/**
- * @brief
- *	logs message when rpp fails
- *
- * @param[in] mess - msg to be logged
- *
- * @return	Void
- *
- */
-
-void
-log_rppfail(char *mess)
-{
-	log_event(PBSEVENT_DEBUG, LOG_DEBUG,
-		PBS_EVENTCLASS_SERVER, "rpp", mess);
-}
-
 /*
  * @brief
  *	Function called by the Libtpp layer when the network connection to
@@ -8169,7 +8148,7 @@ main(int argc, char *argv[])
 	unsigned int		serverport;
 	int					recover = 0;
 	time_t				time_state_update = 0;
-	int					rppfd; /* fd for rm and im comm */
+	int					tppfd; /* fd for rm and im comm */
 	double				myla;
 	job					*nxpjob;
 	job					*pjob;
@@ -9218,7 +9197,7 @@ main(int argc, char *argv[])
 		return (1);
 	}
 
-	rpp_fd = -1;
+	tpp_fd = -1;
 	if (init_network_add(sock_bind_mom, NULL, process_request) != 0) {
 
 		c = ERRORNO;
@@ -9309,8 +9288,8 @@ main(int argc, char *argv[])
 
 	tpp_set_app_net_handler(net_down_handler, net_restore_handler);
 
-	if ((rppfd = tpp_init(&tpp_conf)) == -1) {
-		(void) sprintf(log_buffer, "rpp_init failed");
+	if ((tppfd = tpp_init(&tpp_conf)) == -1) {
+		(void) sprintf(log_buffer, "tpp_init failed");
 		log_event(PBSEVENT_SYSTEM | PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
 			LOG_ERR, msg_daemonname, log_buffer);
 		fprintf(stderr, "%s", log_buffer);
@@ -9570,7 +9549,7 @@ main(int argc, char *argv[])
 #ifndef	WIN32
 	initialize();		/* init RM code */
 #endif
-	(void)add_conn(rppfd, RppComm, (pbs_net_t)0, 0, NULL, rpp_request);
+	(void)add_conn(tppfd, TppComm, (pbs_net_t)0, 0, NULL, tpp_request);
 
 	/* initialize machine dependent polling routines */
 	if ((c = mom_open_poll()) != PBSE_NONE) {

@@ -383,14 +383,12 @@ AC_CONFIG_FILES([
 	src/include/pbs_version.h
 	src/lib/Libattr/Makefile
 	src/lib/Libdb/Makefile
-	src/lib/Liblog/Makefile
 	src/lib/Libnet/Makefile
 	src/lib/Libpbs/Makefile
 	src/lib/Libpbs/pbs.pc
 	src/lib/Libpython/Makefile
 	src/lib/Libsec/Makefile
 	src/lib/Libsite/Makefile
-	src/lib/Libutil/Makefile
 	src/lib/Makefile
 	src/modules/Makefile
 	src/modules/python/Makefile

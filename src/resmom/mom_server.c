@@ -69,7 +69,7 @@
 #include	"attribute.h"
 #include	"log.h"
 #include	"net_connect.h"
-#include	"rpp.h"
+#include	"tpp.h"
 #include	"dis.h"
 #include 	"pbs_nodes.h"
 #include	"placementsets.h"
@@ -464,8 +464,8 @@ process_IS_CMD(int stream)
 	request->rq_conn = stream;
 	strcpy(request->rq_host, netaddr(addr));
 	request->rq_fromsvr = 1;
-	request->isrpp = 1;
-	request->rppcmd_msgid = msgid;
+	request->istpp = 1;
+	request->tppcmd_msgid = msgid;
 
 	rc = dis_request_read(stream, request);
 	if (rc != 0) {
@@ -687,10 +687,10 @@ err:
 
 /**
  * @brief
- *	This handles input coming from another server over a DIS rpp stream.
+ *	This handles input coming from another server over a DIS tpp stream.
  *	Read the stream to get a Inter-Server request.
  *
- * @param[in]	stream - the DIS rpp stream
+ * @param[in]	stream - the DIS tpp stream
  * @param[in]	version - protocol version of the incoming connection
  *
  */
@@ -1240,14 +1240,14 @@ err:
 
 /**
  * @brief
- *	Sends any pending RPP requests to the server related to hooks.
+ *	Sends any pending TPP requests to the server related to hooks.
  *
  * @par
  *	May be called with:
  *	1. a new linked list in which case each vnl entry is sent to the
  *	   Server and the list entry is relinked into svr_hook_vnl_actions
  *	   where it remains until the update is acknowledged by the Server; OR
- *	2. svr_hook_vnl_actions which is done when a new RPP stream is opened
+ *	2. svr_hook_vnl_actions which is done when a new TPP stream is opened
  *	   by a server on restart or reestablished communications.  In this
  *	   case only the entries in svr_hook_vnl_actions are only resent.
  * @Note
@@ -1776,7 +1776,7 @@ recover_vmap(void)
 
 /**
  * @brief
- *	Send a rpp message to the Server asking that it tell the Scheduler
+ *	Send a tpp message to the Server asking that it tell the Scheduler
  *	to restart it's scheduling cycle.
  * @par
  *	If this message is lost due to a closed stream to the Server, so be it.

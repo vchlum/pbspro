@@ -1096,31 +1096,40 @@ status_resc(struct resource_def *prd, struct batch_request *preq, pbs_list_head 
 	if (private) {
 		attr.at_val.at_long = prd->rs_type;
 		attr.at_flags = ATR_VFLAG_SET;
-		if (encode_l(&attr, &pstat->brp_attr, ATTR_RESC_TYPE, NULL, 0, NULL) == -1)
+		if (encode_l(&attr, &pstat->brp_attr, ATTR_RESC_TYPE, NULL, 0, NULL) == -1) {
+			free(pstat);
 			return PBSE_SYSTEM;
+		}
 
 		attr.at_val.at_long = prd->rs_flags;
 		attr.at_flags = ATR_VFLAG_SET;
-		if (encode_l(&attr, &pstat->brp_attr, ATTR_RESC_FLAG, NULL, 0, NULL) == -1)
+		if (encode_l(&attr, &pstat->brp_attr, ATTR_RESC_FLAG, NULL, 0, NULL) == -1) {
+			free(pstat);
 			return PBSE_SYSTEM;
+		}
 	}
 	else {
 		struct resc_type_map *p_resc_type_map;
 
 		p_resc_type_map = find_resc_type_map_by_typev(prd->rs_type);
 		if (p_resc_type_map == NULL) {
+			free(pstat);
 			return PBSE_SYSTEM;
 		}
 
 		attr.at_val.at_str = p_resc_type_map->rtm_rname;
 		attr.at_flags = ATR_VFLAG_SET;
-		if (encode_str(&attr, &pstat->brp_attr, ATTR_RESC_TYPE, NULL, 0, NULL) == -1)
+		if (encode_str(&attr, &pstat->brp_attr, ATTR_RESC_TYPE, NULL, 0, NULL) == -1) {
+			free(pstat);
 			return PBSE_SYSTEM;
+		}
 
 		attr.at_val.at_str = find_resc_flag_map(prd->rs_flags);
 		attr.at_flags = ATR_VFLAG_SET;
-		if (encode_str(&attr, &pstat->brp_attr, ATTR_RESC_FLAG, NULL, 0, NULL) == -1)
+		if (encode_str(&attr, &pstat->brp_attr, ATTR_RESC_FLAG, NULL, 0, NULL) == -1) {
+			free(pstat);
 			return PBSE_SYSTEM;
+		}
 	}
 	append_link(pstathd, &pstat->brp_stlink, pstat);
 	return 0;
@@ -1210,4 +1219,3 @@ req_stat_resc(struct batch_request *preq)
 		(void)reply_send(preq);
 	}
 }
-

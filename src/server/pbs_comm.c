@@ -83,7 +83,7 @@
 #include "pbs_ifl.h"
 #include "pbs_internal.h"
 #include "log.h"
-#include "rpp.h"
+#include "tpp.h"
 
 #include "server_limits.h"
 #include "pbs_version.h"
@@ -461,7 +461,7 @@ main(int argc, char **argv)
 {
 	char *name = NULL;
 	struct tpp_config conf;
-	int rpp_fd;
+	int tpp_fd;
 	char *pc;
 	int numthreads;
 	char lockfile[MAXPATHLEN + 1];
@@ -710,7 +710,7 @@ main(int argc, char **argv)
 	conf.node_type = TPP_ROUTER_NODE;
 	conf.numthreads = numthreads;
 
-	if ((rpp_fd = tpp_init_router(&conf)) == -1) {
+	if ((tpp_fd = tpp_init_router(&conf)) == -1) {
 		log_err(-1, __func__, "tpp init failed\n");
 		return 1;
 	}

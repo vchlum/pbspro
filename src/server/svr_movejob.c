@@ -89,7 +89,7 @@
 #include "net_connect.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
-#include "rpp.h"
+#include "tpp.h"
 #include <memory.h>
 #include "server.h"
 #include "hook.h"
@@ -109,10 +109,10 @@ int  local_move(job *, struct batch_request *);
 
 static void post_movejob(struct work_task *);
 static void post_routejob(struct work_task *);
-static int small_job_files(job* pjob);
-extern int should_retry_route(int err);
-extern int move_job_file(int con, job *pjob, enum job_file which, int rpp, char **msgid);
-extern void post_sendmom(struct work_task *pwt);
+static int small_job_files(job *);
+extern int should_retry_route(int);
+extern int move_job_file(int, job *, enum job_file, int, char **);
+extern void post_sendmom(struct work_task *);
 
 
 /* Global Data */
@@ -478,7 +478,7 @@ post_movejob(struct work_task *pwt)
 /**
  *
  * @brief
- * 	Send execution job on connected rpp stream.
+ * 	Send execution job on connected tpp stream.
  *	Note: Job structure has been loaded with the script by now (ji_script populated)
  *
  * @param[in]	jobp - pointer to the job being sent
@@ -506,7 +506,6 @@ send_job_exec(job *jobp, pbs_net_t hostaddr, int port, struct batch_request *req
 	char job_id[PBS_MAXSVRJOBID + 1];
 	struct attropl *pqjatr; /* list (single) of attropl for quejob */
 	int rc;
-	int rpp = 1;
 	char *jobid = NULL;
 	char *msgid = NULL;
 	char *dup_msgid = NULL;
@@ -517,7 +516,7 @@ send_job_exec(job *jobp, pbs_net_t hostaddr, int port, struct batch_request *req
 	save_resc_access_perm = resc_access_perm;
 	pbs_errno = PBSE_NONE;
 
-	stream = svr_connect(hostaddr, port, NULL, ToServerDIS, rpp);
+	stream = svr_connect(hostaddr, port, NULL, ToServerDIS, PROT_TPP);
 	if (stream < 0) {
 		sprintf(log_buffer, "Could not connect to Mom, svr_connect returned %d", stream);
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_REQUEST, LOG_WARNING, "", log_buffer);
@@ -555,12 +554,12 @@ send_job_exec(job *jobp, pbs_net_t hostaddr, int port, struct batch_request *req
 	(void) strcpy(job_id, jobp->ji_qs.ji_jobid);
 
 	pqjatr = &((svrattrl *) GET_NEXT(attrl))->al_atopl;
-	jobid = PBSD_queuejob(stream, jobp->ji_qs.ji_jobid, destin, pqjatr, NULL, rpp, &msgid);
+	jobid = PBSD_queuejob(stream, jobp->ji_qs.ji_jobid, destin, pqjatr, NULL, PROT_TPP, &msgid);
 	free_attrlist(&attrl);
 	if (jobid == NULL)
 		goto send_err;
 
-	tpp_add_close_func(stream, process_DreplyRPP); /* register a close handler */
+	tpp_add_close_func(stream, process_DreplyTPP); /* register a close handler */
 
 	/* adding msgid to deferred list, dont free msgid */
 	if ((ptask = add_mom_deferred_list(stream, pmom, post_sendmom, msgid, request, jobp)) == NULL) {
@@ -587,7 +586,7 @@ send_job_exec(job *jobp, pbs_net_t hostaddr, int port, struct batch_request *req
 	 * and we will be hanging off one request to be answered to finally
 	 */
 	if (jobp->ji_qs.ji_svrflags & JOB_SVFLG_SCRIPT) {
-		if (PBSD_jscript_direct(stream, jobp->ji_script, rpp, &dup_msgid) != 0)
+		if (PBSD_jscript_direct(stream, jobp->ji_script, PROT_TPP, &dup_msgid) != 0)
 			goto send_err;
 	}
 	if (jobp->ji_script) {
@@ -596,7 +595,7 @@ send_job_exec(job *jobp, pbs_net_t hostaddr, int port, struct batch_request *req
 	}
 
 	if (credlen > 0) {
-		rc = PBSD_jcred(stream, jobp->ji_extended.ji_ext.ji_credtype, credbuf, credlen, rpp, &dup_msgid);
+		rc = PBSD_jcred(stream, jobp->ji_extended.ji_ext.ji_credtype, credbuf, credlen, PROT_TPP, &dup_msgid);
 		if (credbuf)
 			free(credbuf);
 		if (rc != 0)
@@ -605,13 +604,13 @@ send_job_exec(job *jobp, pbs_net_t hostaddr, int port, struct batch_request *req
 
 	if ((jobp->ji_qs.ji_svrflags & JOB_SVFLG_HASRUN)
 		&& (hostaddr != pbs_server_addr)) {
-		if ((move_job_file(stream, jobp, StdOut, rpp, &dup_msgid) != 0) ||
-			(move_job_file(stream, jobp, StdErr, rpp, &dup_msgid) != 0) ||
-			(move_job_file(stream, jobp, Chkpt, rpp, &dup_msgid) != 0))
+		if ((move_job_file(stream, jobp, StdOut, PROT_TPP, &dup_msgid) != 0) ||
+			(move_job_file(stream, jobp, StdErr, PROT_TPP, &dup_msgid) != 0) ||
+			(move_job_file(stream, jobp, Chkpt, PROT_TPP, &dup_msgid) != 0))
 			goto send_err;
 	}
 
-	if (PBSD_commit(stream, job_id, rpp, &dup_msgid) != 0)
+	if (PBSD_commit(stream, job_id, PROT_TPP, &dup_msgid) != 0)
 		goto send_err;
 
 	free(dup_msgid); /* free this as it is not part of any work task */
@@ -686,7 +685,6 @@ send_job(job *jobp, pbs_net_t hostaddr, int port, int move_type,
 	struct  hostent *hp;
 	struct in_addr   addr;
 	long		 tempval;
-	int 		rpp = 0;
 
 	/* if job has a script read it from database */
 	if (jobp->ji_qs.ji_svrflags & JOB_SVFLG_SCRIPT) {
@@ -835,7 +833,7 @@ send_job(job *jobp, pbs_net_t hostaddr, int port, int move_type,
 			}
 			sleep(1<<i);
 		}
-		if ((con = svr_connect(hostaddr, port, 0, cntype, rpp)) ==
+		if ((con = svr_connect(hostaddr, port, 0, cntype, PROT_TCP)) ==
 			PBS_NET_RC_FATAL) {
 			(void)sprintf(log_buffer, "send_job failed to %lx port %d",
 				hostaddr, port);
@@ -867,7 +865,7 @@ send_job(job *jobp, pbs_net_t hostaddr, int port, int move_type,
 
 			pqjatr = &((svrattrl *)GET_NEXT(attrl))->al_atopl;
 			if (PBSD_queuejob(con, jobp->ji_qs.ji_jobid, destin,
-				pqjatr, NULL, rpp, NULL) == 0) {
+				pqjatr, NULL, PROT_TCP, NULL) == 0) {
 				if (pbs_errno == PBSE_JOBEXIST &&
 					move_type == MOVE_TYPE_Exec) {
 					/* already running, mark it so */
@@ -949,7 +947,7 @@ send_job(job *jobp, pbs_net_t hostaddr, int port, int move_type,
 			}
 
 			if (jobp->ji_qs.ji_svrflags & JOB_SVFLG_SCRIPT) {
-				if (PBSD_jscript(con, script_name, rpp, NULL) != 0)
+				if (PBSD_jscript(con, script_name, PROT_TCP, NULL) != 0)
 					continue;
 			}
 
@@ -958,7 +956,7 @@ send_job(job *jobp, pbs_net_t hostaddr, int port, int move_type,
 
 				ret = PBSD_jcred(con,
 					jobp->ji_extended.ji_ext.ji_credtype,
-					credbuf, credlen, rpp, NULL);
+					credbuf, credlen, PROT_TCP, NULL);
 				if ((ret == 0) || (i == (RETRY - 1)))
 					free(credbuf);	/* free credbuf if cred info is sent successfully OR */
 				/* at the end of all retry attempts */
@@ -970,19 +968,19 @@ send_job(job *jobp, pbs_net_t hostaddr, int port, int move_type,
 				(jobp->ji_qs.ji_svrflags & JOB_SVFLG_HASRUN) &&
 				(hostaddr !=  pbs_server_addr)) {
 				/* send files created on prior run */
-				if ((move_job_file(con, jobp, StdOut, rpp, NULL) != 0) ||
-					(move_job_file(con, jobp, StdErr, rpp, NULL) != 0) ||
-					(move_job_file(con, jobp, Chkpt, rpp, NULL) != 0))
+				if ((move_job_file(con, jobp, StdOut, PROT_TCP, NULL) != 0) ||
+					(move_job_file(con, jobp, StdErr, PROT_TCP, NULL) != 0) ||
+					(move_job_file(con, jobp, Chkpt, PROT_TCP, NULL) != 0))
 					continue;
 			}
 
 			jobp->ji_qs.ji_substate = JOB_SUBSTATE_TRNOUTCM;
 		}
 
-		if (PBSD_rdytocmt(con, job_id, rpp, NULL) != 0)
+		if (PBSD_rdytocmt(con, job_id, PROT_TCP, NULL) != 0)
 			continue;
 
-		if (PBSD_commit(con, job_id, rpp, NULL) != 0) {
+		if (PBSD_commit(con, job_id, PROT_TCP, NULL) != 0) {
 			/* delete the temp script file */
 			unlink(script_name);
 			exit(SEND_JOB_FATAL);
@@ -1115,7 +1113,7 @@ should_retry_route(int err)
  * @param[in]	conn	-	connection handle
  * @param[in]	pjob	-	pointer to job structure
  * @param[in]	which	-	standard file type, see libpbs.h
- * @param[in]	rpp	-	Connect over RPP or over TCP?
+ * @param[in]	prot	-	PROT_TCP or PROT_TPP
  * @param[out]	msgid	-	message id
  *
  * @return	int
@@ -1123,7 +1121,7 @@ should_retry_route(int err)
  * @retval	!=0	: error code
  */
 int
-move_job_file(int conn, job *pjob, enum job_file which, int rpp, char **msgid)
+move_job_file(int conn, job *pjob, enum job_file which, int prot, char **msgid)
 {
 	char path[MAXPATHLEN+1];
 
@@ -1145,7 +1143,7 @@ move_job_file(int conn, job *pjob, enum job_file which, int rpp, char **msgid)
 		else
 			return (errno);
 	}
-	return PBSD_jobfile(conn, PBS_BATCH_MvJobFile, path, pjob->ji_qs.ji_jobid, which, rpp, msgid);
+	return PBSD_jobfile(conn, PBS_BATCH_MvJobFile, path, pjob->ji_qs.ji_jobid, which, prot, msgid);
 }
 
 /**

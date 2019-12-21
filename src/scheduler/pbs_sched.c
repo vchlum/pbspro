@@ -57,7 +57,6 @@
  *	update_svr_schedobj()
  *	lock_out()
  *	are_we_primary()
- *	log_rppfail()
  *	main()
  *
  */
@@ -102,7 +101,7 @@
 #include	"server_limits.h"
 #include	"net_connect.h"
 #include	"rm.h"
-#include	"rpp.h"
+#include	"tpp.h"
 #include	"libsec.h"
 #include	"pbs_ecl.h"
 #include	"pbs_share.h"
@@ -796,19 +795,6 @@ are_we_primary()
 
 /**
  * @brief
- * 		log the rpp failure message
- *
- * @param[in]	mess	-	message to be logged.
- */
-void
-log_rppfail(char *mess)
-{
-	log_event(PBSEVENT_DEBUG, LOG_DEBUG,
-		PBS_EVENTCLASS_SERVER, "rpp", mess);
-}
-
-/**
- * @brief
  * 		the entry point of the pbs_sched.
  */
 int
@@ -830,7 +816,7 @@ main(int argc, char *argv[])
 	extern	char	*optarg;
 	extern	int	optind, opterr;
 	char	       *runjobid = NULL;
-	extern	int	rpp_fd;
+	extern	int	tpp_fd;
 	fd_set		fdset;
 	int		opt_no_restart = 0;
 #ifdef NAS /* localmod 031 */
@@ -1281,7 +1267,7 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	rpp_fd = -1;
+	tpp_fd = -1;
 	sprintf(log_buffer, "Out of memory");
 	if (pbs_conf.pbs_leaf_name) {
 		char *p;
@@ -1311,15 +1297,15 @@ main(int argc, char *argv[])
 		return -1;
 	}
 
-	if ((rpp_fd = tpp_init(&tpp_conf)) == -1) {
-		fprintf(stderr, "rpp_init failed\n");
+	if ((tpp_fd = tpp_init(&tpp_conf)) == -1) {
+		fprintf(stderr, "tpp_init failed\n");
 		return -1;
 	}
 	/*
 		* Wait for net to get restored, ie, app to connect to routers
 		*/
 	FD_ZERO(&selset);
-	FD_SET(rpp_fd, &selset);
+	FD_SET(tpp_fd, &selset);
 	tv.tv_sec = 5;
 	tv.tv_usec = 0;
 	select(FD_SETSIZE, &selset, NULL, NULL, &tv);

@@ -88,14 +88,8 @@ pbs_defschreply(int c, int cmd, char *id, int err, char *txt, char *extend)
 	if (pbs_client_thread_lock_connection(c) != 0)
 		return pbs_errno;
 
-	/* setup DIS support routines for following DIS calls */
-
-	DIS_tcp_funcs();
-
 	/* encode request */
-
-	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_DefSchReply,
-		pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_DefSchReply, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = diswui(c, cmd)  != 0)                        ||
 		(rc = diswst(c, id)  != 0)                        ||
 		(rc = diswui(c, err)  != 0)) {

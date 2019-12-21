@@ -192,7 +192,6 @@ main(int argc, char *argv[], char *envp[])
 		fprintf(stderr, "pbs_iff: thread initialization failed\n");
 		return (1);
 	}
-	DIS_tcp_funcs();
 
 	/* setup connection level thread context */
 	if (pbs_client_thread_init_connect_context(sock) != 0) {
@@ -240,7 +239,7 @@ main(int argc, char *argv[], char *envp[])
 	for (i=0; i<4; i++) {
 		/* send authentication information */
 
-		if (encode_DIS_ReqHdr(sock, PBS_BATCH_AuthenResvPort, pwent->pw_name) ||
+		if (encode_DIS_ReqHdr(sock, PBS_BATCH_AuthenResvPort, pwent->pw_name, PROT_TCP, NULL) ||
 			diswui(sock, parentport) ||
 			encode_DIS_ReqExtend(sock, NULL)) {
 			return (2);

@@ -86,7 +86,7 @@
 #include "resource.h"
 #include "job.h"
 #include "log.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "dis.h"
 #include "pbs_nodes.h"
 #include "mom_mach.h"
@@ -4118,7 +4118,7 @@ start_exec(job *pjob)
 	int		        nodemux = 0;
 	int			mtfd = -1;
 
-	/* make sure we have an open rpp stream back to the server */
+	/* make sure we have an open connection back to the server */
 
 	if (server_stream == -1)
 		send_restart();
@@ -4201,7 +4201,7 @@ start_exec(job *pjob)
 				return;
 			}
 			if (pbs_conf.pbs_use_mcast == 1) {
-				/* add each of the rpp streams to the tpp mcast channel */
+				/* add each of the tpp streams to the tpp mcast channel */
 				if ((tpp_mcast_add_strm(mtfd, np->hn_stream)) == -1) {
 					tpp_close(np->hn_stream);
 					np->hn_stream = -1;

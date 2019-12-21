@@ -134,7 +134,6 @@ if not %ERRORLEVEL% == 0 (
 
 for %%a in (
     "%WINBUILDDIR%\src\lib\Libattr\%BUILD_TYPE%\Libattr.lib"
-    "%WINBUILDDIR%\src\lib\Liblog\%BUILD_TYPE%\Liblog.lib"
     "%WINBUILDDIR%\src\lib\Libnet\%BUILD_TYPE%\Libnet.lib"
     "%WINBUILDDIR%\src\lib\Libpbs\%BUILD_TYPE%\Libpbs.lib"
     "%WINBUILDDIR%\src\lib\Libsite\%BUILD_TYPE%\Libsite.lib"

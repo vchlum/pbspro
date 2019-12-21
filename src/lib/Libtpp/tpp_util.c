@@ -68,7 +68,7 @@
 #include "avltree.h"
 #include "pbs_error.h"
 
-#include "rpp.h"
+#include "tpp.h"
 #include "dis.h"
 
 /*
@@ -91,7 +91,7 @@ long tpp_log_event_mask = 0;
 #define PBS_TCP_KEEPALIVE "PBS_TCP_KEEPALIVE" /* environment string to search for */
 
 /* extern functions called from this file into the tpp_transport.c */
-static pbs_tcp_chan_t * tppdis_get_user_data(int sd);
+static pbs_tcp_chan_t * tppdis_get_user_data(int);
 
 /**
  * @brief

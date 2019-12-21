@@ -44,24 +44,18 @@
 #include <pbs_ifl.h>
 #include <rm.h>
 #include "pbs_internal.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "log.h"
 
 
 #define SHOW_NONE 0xff
 int log_mask;
 
-void
-log_rppfail(char *mess)
-{
-	fprintf(stderr, "rpp error: %s\n", mess);
-}
-
 static void
 log_tppmsg(int level, const char *objname, char *mess)
 {
 	if ((level | log_mask) <= LOG_ERR)
-		fprintf(stderr, "rpp error: %s\n", mess);
+		fprintf(stderr, "tpp error: %s\n", mess);
 }
 
 int
@@ -142,8 +136,8 @@ main(int argc, char *argv[])
 		return -1;
 	}
 
-	if ((rpp_fd = tpp_init(&tpp_conf)) == -1) {
-		fprintf(stderr, "rpp_init failed\n");
+	if ((tpp_fd = tpp_init(&tpp_conf)) == -1) {
+		fprintf(stderr, "tpp_init failed\n");
 		return -1;
 	}
 
@@ -151,7 +145,7 @@ main(int argc, char *argv[])
 	 * Wait for net to get restored, ie, app to connect to routers
 	 */
 	FD_ZERO(&selset);
-	FD_SET(rpp_fd, &selset);
+	FD_SET(tpp_fd, &selset);
 	tv.tv_sec = 5;
 	tv.tv_usec = 0;
 	select(FD_SETSIZE, &selset, NULL, NULL, &tv);

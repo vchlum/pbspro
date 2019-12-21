@@ -53,7 +53,7 @@
 #else
 #include <sys/wait.h>
 #include <dirent.h>
-#include "rpp.h"
+#include "tpp.h"
 #endif
 #include "pbs_ifl.h"
 #include "list_link.h"

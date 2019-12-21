@@ -45,7 +45,7 @@
 #include "portability.h"
 #include "libpbs.h"
 #include "dis.h"
-#include "rpp.h"
+#include "tpp.h"
 
 /**
  * @brief Sends the Modify Reservation request
@@ -62,15 +62,12 @@
 char *
 PBSD_modify_resv(int connect, char *resv_id, struct attropl *attrib, char *extend)
 {
-	struct batch_reply	*reply = NULL;
-	int			rc = -1;
-	char			*ret = NULL;
-
-	DIS_tcp_funcs();
+	struct batch_reply *reply;
+	int rc;
+	char *ret = NULL;
 
 	/* first, set up the body of the Modify Reservation request */
-
-	if ((rc = encode_DIS_ReqHdr(connect, PBS_BATCH_ModifyResv, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(connect, PBS_BATCH_ModifyResv, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = encode_DIS_ModifyResv(connect, resv_id, attrib)) ||
 		(rc = encode_DIS_ReqExtend(connect, extend))) {
 			if (set_conn_errtxt(connect, dis_emsg[rc]) != 0) {

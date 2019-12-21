@@ -103,7 +103,7 @@
 #include "net_connect.h"
 #include "batch_request.h"
 #include "log.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "dis.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
@@ -641,9 +641,9 @@ dispatch_request(int sfds, struct batch_request *request)
 {
 
 	conn_t *conn = NULL;
-	int rpp = request->isrpp;
+	int istpp = request->istpp;
 
-	if (!rpp) {
+	if (!istpp) {
 		if (sfds != PBS_LOCAL_CONNECTION) {
 			conn = get_conn(sfds);
 			if (!conn) {
@@ -660,8 +660,8 @@ dispatch_request(int sfds, struct batch_request *request)
 	switch (request->rq_type) {
 
 		case PBS_BATCH_QueueJob:
-			if (rpp) {
-				request->rpp_ack = 0;
+			if (istpp) {
+				request->tpp_tck = 0;
 				tpp_add_close_func(sfds, close_quejob);
 			} else
 				net_add_close_func(sfds, close_quejob);
@@ -673,17 +673,16 @@ dispatch_request(int sfds, struct batch_request *request)
 
 			/* Reject if a user client (qsub -Wpwd) and not a */
 			/* server (qmove) enqueued a job with JobCredential */
-			if ( !request->rq_fromsvr && \
-			     (server.sv_attr[SRV_ATR_ssignon_enable].at_flags \
-                                                         & ATR_VFLAG_SET) &&  \
-                             (server.sv_attr[SRV_ATR_ssignon_enable].at_val.at_long == 1) ) {
+			if (!request->rq_fromsvr && \
+				(server.sv_attr[SRV_ATR_ssignon_enable].at_flags & ATR_VFLAG_SET) &&  \
+				(server.sv_attr[SRV_ATR_ssignon_enable].at_val.at_long == 1)) {
 				req_reject(PBSE_SSIGNON_SET_REJECT, 0, request);
 				close_client(sfds);
 				break;
 			}
 #endif
-			if (rpp)
-				request->rpp_ack = 0;
+			if (istpp)
+				request->tpp_tck = 0;
 			req_jobcredential(request);
 			break;
 
@@ -714,8 +713,8 @@ dispatch_request(int sfds, struct batch_request *request)
 			break;
 
 		case PBS_BATCH_jobscript:
-			if (rpp)
-				request->rpp_ack = 0;
+			if (istpp)
+				request->tpp_tck = 0;
 			req_jobscript(request);
 			break;
 
@@ -725,16 +724,16 @@ dispatch_request(int sfds, struct batch_request *request)
 			 * simply acks the request (in case some client makes this call)
 			 */
 		case PBS_BATCH_RdytoCommit:
-			if (request->isrpp)
-				request->rpp_ack = 0;
+			if (istpp)
+				request->tpp_tck = 0;
 			reply_ack(request);
 			break;
 
 		case PBS_BATCH_Commit:
-			if (rpp)
-				request->rpp_ack = 0;
+			if (istpp)
+				request->tpp_tck = 0;
 			req_commit(request);
-			if (rpp)
+			if (istpp)
 				tpp_add_close_func(sfds, (void (*)(int))0);
 			else
 				net_add_close_func(sfds, (void (*)(int))0);
@@ -766,7 +765,7 @@ dispatch_request(int sfds, struct batch_request *request)
 #endif
 
 		case PBS_BATCH_HoldJob:
-			if (sfds != PBS_LOCAL_CONNECTION && !rpp)
+			if (sfds != PBS_LOCAL_CONNECTION && !istpp)
 				conn->cn_authen |= PBS_NET_CONN_NOTIMEOUT;
 			req_holdjob(request);
 			break;
@@ -793,7 +792,7 @@ dispatch_request(int sfds, struct batch_request *request)
 			break;
 
 		case PBS_BATCH_PySpawn:
-			if (sfds != PBS_LOCAL_CONNECTION && !rpp)
+			if (sfds != PBS_LOCAL_CONNECTION && !istpp)
 				conn->cn_authen |= PBS_NET_CONN_NOTIMEOUT;
 			req_py_spawn(request);
 			break;
@@ -827,7 +826,7 @@ dispatch_request(int sfds, struct batch_request *request)
 			break;
 
 		case PBS_BATCH_ReleaseJob:
-			if (sfds != PBS_LOCAL_CONNECTION && !rpp)
+			if (sfds != PBS_LOCAL_CONNECTION && !istpp)
 				conn->cn_authen |= PBS_NET_CONN_NOTIMEOUT;
 			req_releasejob(request);
 			break;
@@ -975,7 +974,7 @@ dispatch_request(int sfds, struct batch_request *request)
 				request->rq_ind.rq_cpyfile.rq_jobid,
 				"copy file request received");
 			/* don't time-out as copy may take long time */
-			if (sfds != PBS_LOCAL_CONNECTION && !rpp)
+			if (sfds != PBS_LOCAL_CONNECTION && !istpp)
 				conn->cn_authen |= PBS_NET_CONN_NOTIMEOUT;
 			req_cpyfile(request);
 			break;
@@ -984,7 +983,7 @@ dispatch_request(int sfds, struct batch_request *request)
 				request->rq_ind.rq_cpyfile_cred.rq_copyfile.rq_jobid,
 				"copy file cred request received");
 			/* don't time-out as copy may take long time */
-			if (sfds != PBS_LOCAL_CONNECTION && !rpp)
+			if (sfds != PBS_LOCAL_CONNECTION && !istpp)
 				conn->cn_authen |= PBS_NET_CONN_NOTIMEOUT;
 			req_cpyfile(request);
 			break;
@@ -1082,9 +1081,9 @@ struct batch_request *alloc_br(int type)
 		req->rq_conn = -1;		/* indicate not connected */
 		req->rq_orgconn = -1;		/* indicate not connected */
 		req->rq_time = time_now;
-		req->rpp_ack = 1; /* enable acks to be passed by rpp by default */
-		req->isrpp = 0; /* not rpp by default */
-		req->rppcmd_msgid = NULL; /* NULL msgid to boot */
+		req->tpp_tck = 1; /* enable acks to be passed by tpp by default */
+		req->istpp = PROT_TCP; /* not tpp by default */
+		req->tppcmd_msgid = NULL; /* NULL msgid to boot */
 		req->rq_reply.brp_choice = BATCH_REPLY_CHOICE_NULL;
 		append_link(&svr_requests, &req->rq_link, req);
 	}
@@ -1330,8 +1329,8 @@ free_br(struct batch_request *preq)
 				reply_send(preq->rq_parentbr);
 		}
 
-		if (preq->rppcmd_msgid)
-			free(preq->rppcmd_msgid);
+		if (preq->tppcmd_msgid)
+			free(preq->tppcmd_msgid);
 
 		(void)free(preq);
 		return;
@@ -1452,8 +1451,8 @@ free_br(struct batch_request *preq)
 			break;
 #endif /* PBS_MOM */
 	}
-	if (preq->rppcmd_msgid)
-		free(preq->rppcmd_msgid);
+	if (preq->tppcmd_msgid)
+		free(preq->tppcmd_msgid);
 	(void)free(preq);
 }
 /**

@@ -77,7 +77,7 @@
 #include "mom_server.h"
 #include "mom_vnode.h"
 #include "pbs_error.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "mom_hook_func.h"
 #include "placementsets.h"
 #include "hook.h"
@@ -1104,8 +1104,7 @@ update_ajob_status_using_cmd(job *pjob, int cmd, int use_rtn_list_ext)
 		encode_used(pjob, &rused.ru_attr);
 	}
 
-	/* now send info to server via rpp */
-
+	/* now send info to server via tpp */
 	send_resc_used(cmd, 1, &rused);
 
 	/* free svrattrl list */
@@ -1218,8 +1217,7 @@ update_jobs_status(void)
 		}
 	}
 
-	/* now send info to server via rpp */
-
+	/* now send info to server via tpp */
 	send_resc_used(IS_RESCUSED, count, prusedtop);
 
 	/* free each resc_used_update struct and associated svrattrl list  */
@@ -1241,7 +1239,7 @@ update_jobs_status(void)
 /**
  * @brief
  * 	send_obit - routine called following completion of epilogue process
- *	Job then moved into substate OBIT and Obit RPP message sent to server.
+ *	Job then moved into substate OBIT and Obit message sent to server.
  *
  * @param[in] pjob - pointer to job structure
  * @param[in] exval - exit value
@@ -1370,7 +1368,7 @@ send_obit(job *pjob, int exval)
 			    pjob->ji_wattr[(int)JOB_ATR_Comment].at_val.at_str;
 		}
 #endif
-		/* now send info to server via rpp */
+		/* now send info to server via tpp */
 		send_resc_used(IS_JOBOBIT, 1, &rud);
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG,
 			pjob->ji_qs.ji_jobid, "Obit sent");
@@ -1911,25 +1909,32 @@ end_loop:
 }
 
 /**
- * @brief
- * 	send old style IS_RESTART message to Server.
- *	Used when Server is older & does not recognize the TCP Restart message.
+ * @brief	Send a restart message to the Server.
  *
  * @par
- *	Open an RPP stream to the named server/port, compose the IS_RESTART,
- *	flush the stream and then close it.
+ *	Close any existing connection to the server, it is unlikely that
+ *	there is one.  Parse the server name from pbs.conf;
+ *	Use PBS_SERVER_HOST_NAME if defined, else use PBS_SERVER.
  *
- * @param[in]	svr  - name of Server to which to send the restart
- * @param[in]	port - port Server would be expecting to receive IM messages
- *
- * @return	void
- *
+ * @return void
  */
-
-static void
-send_restart_rpp(char *svr, unsigned int port)
+void
+send_restart(void)
 {
-	int		j;
+	unsigned int port = default_server_port;
+	char *svr;
+	int j;
+
+	DIS_tpp_funcs();
+	if (server_stream >= 0) {
+		log_eventf(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_NOTICE, msg_daemonname,
+				"Closing existing server stream %d", server_stream);
+		dis_flush(server_stream);
+		tpp_close(server_stream);
+		server_stream = -1;
+	}
+
+	svr = get_servername(&port);
 
 	j = tpp_open(svr, port);
 
@@ -1948,40 +1953,9 @@ send_restart_rpp(char *svr, unsigned int port)
 
 	(void)diswui(j, pbs_mom_port);
 	dis_flush(j);
-	(void)sprintf(log_buffer, "Restart sent to server at %s:%d", svr, port);
-	log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_NOTICE,
-		msg_daemonname, log_buffer);
+	log_eventf(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_NOTICE, msg_daemonname,
+			"Restart sent to server at %s:%d", svr, port);
 	tpp_close(j);
-}
-
-/**
- * @brief	Send a restart message to the Server.
- *
- * @par
- *	Close any existing rpp streams to the server, it is unlikely that
- *	there is one.  Parse the server name from pbs.conf;
- *	Use PBS_SERVER_HOST_NAME if defined, else use PBS_SERVER.
- *
- * @return void
- */
-void
-send_restart(void)
-{
-	unsigned int	port = default_server_port;
-	char	       *svr;
-
-	if (server_stream >= 0) {
-		sprintf(log_buffer, "Closing existing server stream %d",
-			server_stream);
-		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_NOTICE,
-			msg_daemonname, log_buffer);
-		dis_flush(server_stream);
-		tpp_close(server_stream);
-		server_stream = -1;
-	}
-
-	svr = get_servername(&port);
-	send_restart_rpp(svr, port);
 }
 
 /**
@@ -2224,8 +2198,8 @@ init_abort_jobs(int recover)
  * 	for alps cancel reservation child of mom
  *
  * 	The forked child process cannot send a req_reject or reply_ack since
- * 	transmission of data via rpp is not supported from child processes
- * 	(rpp streams are automatically closed when proccess forks).
+ * 	transmission of data via tpp is not supported from child processes
+ * 	(tpp streams are automatically closed when proccess forks).
  * 	Thus this child exit handler is added to send the reply from the
  * 	parent process after reaping the exit status from child
  *

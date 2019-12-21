@@ -38,7 +38,11 @@
 
 lib_LTLIBRARIES = libpbs.la
 
-libpbs_la_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
+libpbs_la_CPPFLAGS = \
+	-I$(top_srcdir)/src/include \
+	@libical_inc@ \
+	@libundolr_inc@ \
+	@KRB5_CFLAGS@
 
 #
 # There are specific rules that must be followed when updating the library
@@ -270,12 +274,24 @@ libpbs_la_SOURCES = \
 	../Libifl/tcp_dis.c \
 	../Libifl/tm.c \
 	../Libifl/xml_encode_decode.c \
+	../Liblog/chk_file_sec.c \
+	../Liblog/log_event.c \
+	../Liblog/pbs_log.c \
 	../Liblog/pbs_messages.c \
+	../Liblog/setup_env.c \
 	../Libsec/cs_standard.c \
+	../Libutil/execvnode_seq_util.c \
+	../Libutil/pbs_ical.c \
 	../Libutil/misc_utils.c \
-	../Libutil/munge_supp.c \
+	../Libutil/avltree.c \
+	../Libutil/hook.c \
+	../Libutil/work_task.c \
+	../Libutil/entlim.c \
+	../Libutil/daemon_protect.c \
+	../Libutil/pbs_array_list.c \
 	../Libutil/pbs_secrets.c \
 	../Libutil/pbs_aes_encrypt.c \
+	../Libutil/munge_supp.c \
 	../Libutil/krb5_util.c \
 	../Libutil/pbs_gss.c \
 	../Libnet/hnls.c \
@@ -293,6 +309,10 @@ libpbs_la_SOURCES = \
 	ecl_queue_attr_def.c \
 	ecl_resc_def_all.c \
 	ecl_resv_attr_def.c
+
+if UNDOLR_ENABLED
+libpbs_la_SOURCES += ../Libutil/undolr.c
+endif
 
 CLEANFILES = \
 	ecl_job_attr_def.c \

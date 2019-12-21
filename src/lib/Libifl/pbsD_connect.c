@@ -408,7 +408,7 @@ hostnmcmp(char *s1, char *s2)
 int
 engage_external_authentication(int sock, char *server_name, int auth_type, int fromsvr, char *ebuf, int ebufsz)
 {
-	int cred_len = 0, rc = 0, ret = 0;
+	int cred_len = 0, ret = 0;
 	char *cred = NULL;
 	struct batch_reply *reply = NULL;
 
@@ -438,8 +438,8 @@ engage_external_authentication(int sock, char *server_name, int auth_type, int f
 	if (cred) {
 		ret = -1;
 		cred_len = strlen(cred);
-		DIS_tcp_funcs();
-		if (encode_DIS_ReqHdr(sock, PBS_BATCH_AuthExternal, pbs_current_user) ||
+
+		if (encode_DIS_ReqHdr(sock, PBS_BATCH_AuthExternal, pbs_current_user, PROT_TCP, NULL) ||
 				diswuc(sock, auth_type) || /* authentication_type */
 				diswsi(sock, cred_len) ||       /* credential length */
 				diswcs(sock, cred, cred_len) || /* credential data */
@@ -455,7 +455,7 @@ engage_external_authentication(int sock, char *server_name, int auth_type, int f
 
 		memset(cred, 0, cred_len);
 
-		reply = PBSD_rdrpy_sock(sock, &rc);
+		reply = PBSD_rdrpy(sock);
 		if ((reply != NULL) && (reply->brp_code != 0)) {
 			pbs_errno = PBSE_BADCRED;
 			PBSD_FreeReply(reply);
@@ -714,12 +714,10 @@ __pbs_connect_extend(char *server, char *extend_data)
 	 */
 
 #if !defined(PBS_SECURITY ) || (PBS_SECURITY == STD) || (PBS_SECURITY == KRB5)
-
-	DIS_tcp_funcs();
 #if defined(PBS_SECURITY) && (PBS_SECURITY == KRB5)
 	if (getenv("PBSPRO_IGNORE_KERBEROS") || !pbs_gss_can_get_creds()) {
 #endif
-		if ((i = encode_DIS_ReqHdr(sock, PBS_BATCH_Connect, pbs_current_user)) ||
+		if ((i = encode_DIS_ReqHdr(sock, PBS_BATCH_Connect, pbs_current_user, PROT_TCP, NULL)) ||
 			(i = encode_DIS_ReqExtend(sock, extend_data))) {
 			pbs_errno = PBSE_SYSTEM;
 			return -1;
@@ -851,9 +849,7 @@ __pbs_disconnect(int connect)
 		return 0;
 
 	/* send close-connection message */
-
-	DIS_tcp_funcs();
-	if ((encode_DIS_ReqHdr(connect, PBS_BATCH_Disconnect, pbs_current_user) == 0) &&
+	if ((encode_DIS_ReqHdr(connect, PBS_BATCH_Disconnect, pbs_current_user, PROT_TCP, NULL) == 0) &&
 		(dis_flush(connect) == 0)) {
 		for (;;) {	/* wait for server to close connection */
 #ifdef WIN32
@@ -1106,11 +1102,8 @@ err:
 	 */
 
 	/* send "dummy" connect message */
-	DIS_tcp_funcs();
-	if ((i = encode_DIS_ReqHdr(sock,
-		PBS_BATCH_Connect, pbs_current_user)) ||
-		(i = encode_DIS_ReqExtend(sock,
-		NULL))) {
+	if ((i = encode_DIS_ReqHdr(sock, PBS_BATCH_Connect, pbs_current_user, PROT_TCP, NULL)) ||
+		(i = encode_DIS_ReqExtend(sock, NULL))) {
 		pbs_errno = PBSE_SYSTEM;
 		return -1;
 	}

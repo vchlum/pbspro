@@ -48,7 +48,7 @@
 #include "libpbs.h"
 #include "dis.h"
 #include "net_connect.h"
-#include "rpp.h"
+#include "tpp.h"
 
 
 /**
@@ -60,27 +60,19 @@
  * @param[in] fileopt - file type
  * @param[in] msg - msg to be sent
  * @param[in] extend - extention string for req encode
- * @param[in] rpp - indication for rpp protocol
- * @param[in] msgid - message id
+ * @param[in] prot - PROT_TCP or PROT_TPP
+ * @param[in] msgid - msg id
  *
  * @return      int
  * @retval      0               Success
  * @retval      pbs_error(!0)   error
  */
-
 int
-PBSD_msg_put(int c, char *jobid, int fileopt, char *msg, char *extend, int rpp, char **msgid)
+PBSD_msg_put(int c, char *jobid, int fileopt, char *msg, char *extend, int prot, char **msgid)
 {
-	int rc = 0;
+	int rc;
 
-	if (!rpp) {
-		DIS_tcp_funcs();
-	} else {
-		if ((rc = is_compose_cmd(c, IS_CMD, msgid)) != DIS_SUCCESS)
-			return rc;
-	}
-
-	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_MessJob, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_MessJob, pbs_current_user, prot, msgid)) ||
 		(rc = encode_DIS_MessageJob(c, jobid, fileopt, msg)) ||
 		(rc = encode_DIS_ReqExtend(c, extend))) {
 		return (pbs_errno = PBSE_PROTOCOL);
@@ -101,8 +93,8 @@ PBSD_msg_put(int c, char *jobid, int fileopt, char *msg, char *extend, int rpp, 
  * @param[in] jobid - job identifier
  * @param[in] argv - pointer to arguments
  * @param[in] envp - pointer to environment vars
- * @param[in] rpp - indication for rpp protocol
- * @param[in] msgid - message id
+ * @param[in] prot - PROT_TCP or PROT_TPP
+ * @param[in] msgid - msg id
  *
  * @return	int
  * @retval	0		Success
@@ -110,18 +102,11 @@ PBSD_msg_put(int c, char *jobid, int fileopt, char *msg, char *extend, int rpp, 
  */
 
 int
-PBSD_py_spawn_put(int c, char *jobid, char **argv, char **envp, int rpp, char **msgid)
+PBSD_py_spawn_put(int c, char *jobid, char **argv, char **envp, int prot, char **msgid)
 {
-	int rc = 0;
+	int rc;
 
-	if (!rpp) {
-		DIS_tcp_funcs();
-	} else {
-		if ((rc = is_compose_cmd(c, IS_CMD, msgid)) != DIS_SUCCESS)
-			return rc;
-	}
-
-	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_PySpawn, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_PySpawn, pbs_current_user, prot, msgid)) ||
 		(rc = encode_DIS_PySpawn(c, jobid, argv, envp)) ||
 		(rc = encode_DIS_ReqExtend(c, NULL))) {
 			return (pbs_errno = PBSE_PROTOCOL);
@@ -140,26 +125,12 @@ PBSD_py_spawn_put(int c, char *jobid, char **argv, char **envp, int rpp, char **
  *
  *	Send the RelnodesJob request, does not read the reply.
  */
-
 int
-PBSD_relnodes_put(c, jobid, node_list, extend, rpp, msgid)
-int    c;
-char   *jobid;
-char   *node_list;
-char   *extend;
-int    rpp;
-char   **msgid;
+PBSD_relnodes_put(int c, char *jobid, char *node_list, char *extend, int prot, char **msgid)
 {
-	int rc = 0;
+	int rc;
 
-	if (!rpp) {
-		DIS_tcp_funcs();
-	} else {
-		if ((rc = is_compose_cmd(c, IS_CMD, msgid)) != DIS_SUCCESS)
-			return rc;
-	}
-
-	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_RelnodesJob, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_RelnodesJob, pbs_current_user, prot, msgid)) ||
 		(rc = encode_DIS_RelnodesJob(c, jobid, node_list)) ||
 		(rc = encode_DIS_ReqExtend(c, extend))) {
 		return (pbs_errno = PBSE_PROTOCOL);

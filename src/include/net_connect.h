@@ -155,11 +155,11 @@ typedef unsigned long pbs_net_t;        /* for holding host addresses */
  *           If init_network() is called twice, the second port/entry is
  *           marked as the Secondary
  * FromClientDIS - a client initiated connection
- * RppComm - Used by the daemons who do RPP
+ * TppComm - Used by the daemons who do TPP communnication
  * ChildPipe - Used by Mom for a "unix" pipe between herself and a child;
  *           this is not a IP connection.
  * @endverbatim
- * The entries marked as Primary, Secondary, and RppComm do not require
+ * The entries marked as Primary, Secondary, and TppComm do not require
  * additional authenication of the user making the request.
  */
 
@@ -169,7 +169,7 @@ enum conn_type {
 	Secondary,
 	FromClientDIS,
 	ToServerDIS,
-	RppComm,
+	TppComm,
 	ChildPipe,
 	Idle
 };

@@ -49,8 +49,6 @@ pbs_server_bin_CPPFLAGS = \
 
 pbs_server_bin_LDADD = \
 	$(top_builddir)/src/lib/Libattr/libattr.a \
-	$(top_builddir)/src/lib/Libutil/libutil.a \
-	$(top_builddir)/src/lib/Liblog/liblog.a \
 	$(top_builddir)/src/lib/Libnet/libnet.a \
 	$(top_builddir)/src/lib/Libsec/libsec.a \
 	$(top_builddir)/src/lib/Libsite/libsite.a \
@@ -145,9 +143,7 @@ pbs_comm_CPPFLAGS = \
 	@KRB5_CFLAGS@
 
 pbs_comm_LDADD = \
-	$(top_builddir)/src/lib/Liblog/liblog.a \
 	$(top_builddir)/src/lib/Libpbs/.libs/libpbs.a \
-	$(top_builddir)/src/lib/Libutil/libutil.a \
 	-lpthread \
 	@libz_lib@ \
 	@socket_lib@ \

@@ -279,10 +279,6 @@
       <Project>{fefe98c6-6352-4cf4-a40c-56ca414b15ff}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-    <ProjectReference Include="Liblog.vcxproj">
-      <Project>{1ce3edf8-7001-4756-a85b-df7d0bff4c52}</Project>
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
     <ProjectReference Include="Libnet.vcxproj">
       <Project>{5885bb13-6d58-4ee3-94c8-a8928f1eab00}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
@@ -293,10 +289,6 @@
     </ProjectReference>
     <ProjectReference Include="Libsite.vcxproj">
       <Project>{4d4dcde5-c580-44aa-81a9-bad24437c188}</Project>
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
-    <ProjectReference Include="Libutil.vcxproj">
-      <Project>{625346dc-194a-4e7d-92c4-8f9e10b0bb2a}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
     <ProjectReference Include="Libwin.vcxproj">

@@ -76,7 +76,7 @@
 #include "pbs_error.h"
 #include "log.h"
 #include "svrfunc.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "pbs_internal.h"
 #include "work_task.h"
 #include "hook_func.h"

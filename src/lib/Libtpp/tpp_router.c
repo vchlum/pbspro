@@ -74,7 +74,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include "avltree.h"
-#include "rpp.h"
+#include "tpp.h"
 
 
 #define RLIST_INC 100
@@ -96,8 +96,8 @@ AVL_IX_DESC *AVL_my_leaves_notify = NULL;
 time_t router_last_leaf_joined = 0;
 
 /* forward declarations */
-static int router_pkt_handler(int phy_fd, void *data, int len, void *c, void *extra);
-static int router_close_handler(int phy_con, int error, void *c, void *extra);
+static int router_pkt_handler(int tfd, void *data, int len, void *c, void *extra);
+static int router_close_handler(int tfd, int error, void *c, void *extra);
 static int send_leaves_to_router(tpp_router_t *parent, tpp_router_t *target);
 static tpp_router_t *get_preferred_router(tpp_leaf_t *l, tpp_router_t *this_router, int *fd);
 static int add_route_to_leaf(tpp_leaf_t *l, tpp_router_t *r, int index);

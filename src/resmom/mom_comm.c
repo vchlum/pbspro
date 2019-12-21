@@ -80,7 +80,7 @@
 #include	"pbs_error.h"
 #include	"log.h"
 #include	"net_connect.h"
-#include	"rpp.h"
+#include	"tpp.h"
 #include	"dis.h"
 #include	"mom_func.h"
 #include	"credential.h"
@@ -1151,7 +1151,7 @@ send_sisters_job_update(job *pjob)
 			return (-1);
 		}
 		if (pbs_conf.pbs_use_mcast == 1) {
-			/* add each of the rpp streams to the tpp mcast channel */
+			/* add each of the tpp streams to the tpp mcast channel */
 			if ((tpp_mcast_add_strm(mtfd, np->hn_stream)) == -1) {
 				snprintf(log_buffer,
 					sizeof(log_buffer),
@@ -1565,7 +1565,7 @@ send_sisters_mcast_inner(job *pjob, int com, pbs_jobndstm_t command_func,
 		if (np->hn_stream == -1)
 			continue;
 
-		/* add each of the rpp streams to the tpp mcast channel */
+		/* add each of the tpp streams to the tpp mcast channel */
 		if ((tpp_mcast_add_strm(mtfd, np->hn_stream)) == -1) {
 			tpp_close(np->hn_stream);
 			np->hn_stream = -1;
@@ -2978,7 +2978,7 @@ pre_finish_exec(job *pjob, int do_job_setup_send)
 
 /**
  * @brief
- *      Input is coming from another MOM over a DIS rpp stream.
+ *      Input is coming from another MOM over a DIS tpp stream.
  *      Read the stream to get a Inter-MOM request.
  *
  *	request (
@@ -2992,7 +2992,7 @@ pre_finish_exec(job *pjob, int do_job_setup_send)
  *	Format the reply and write it back.
  *
  *
- * @param[in]       stream	inter-MOM stream on which RPP I/O is done
+ * @param[in]       stream	inter-MOM stream on which TPP I/O is done
  * @param[in]       version	inter-MOM protocol version;  only IM_PROTOCOL_VER is
  *			currently supported
  * @return		void

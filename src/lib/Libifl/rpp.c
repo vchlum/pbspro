@@ -44,7 +44,7 @@
  *	which are complete blocks of data which will either arrive
  *	complete or not at all.
  */
-#include	"rpp.h"
+#include	"tpp.h"
 
 
 /* definitions of pointer functions for global use */
@@ -56,10 +56,10 @@ void 					(*pfn_rpp_add_close_func)(int, void (*func)(int));
 int	rpp_dbprt = 0;				/* controls debug printing */
 
 /**
- *	Current file descriptor.  Any call to __tpp_open will use this
+ *	Current file descriptor.  Any call to tpp_open will use this
  *	for the returned stream.
  */
-int		rpp_fd = -1;
+int		tpp_fd = -1;
 
 /**
  *	Number of retrys to for each packet.

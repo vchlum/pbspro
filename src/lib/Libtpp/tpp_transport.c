@@ -71,7 +71,7 @@
 #include <sys/time.h>
 #include <signal.h>
 
-#include "rpp.h"
+#include "tpp.h"
 
 #define TPP_CONN_DISCONNECTED   1 /* Channel is disconnected */
 #define TPP_CONN_INITIATING     2 /* Channel is initiating */

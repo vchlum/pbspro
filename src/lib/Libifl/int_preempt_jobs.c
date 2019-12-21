@@ -45,7 +45,7 @@
 #include "portability.h"
 #include "libpbs.h"
 #include "dis.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "net_connect.h"
 #include "pbs_share.h"
 
@@ -63,16 +63,12 @@
 preempt_job_info*
 PBSD_preempt_jobs(int connect, char **preempt_jobs_list)
 {
-	struct batch_reply *reply = NULL;
+	struct batch_reply *reply;
+	int rc;
 	preempt_job_info *ppj_reply = NULL;
-	preempt_job_info *ppj_temp = NULL;
-	int rc = -1;
-
-	DIS_tcp_funcs();
 
 	/* first, set up the body of the Preempt Jobs request */
-
-	if ((rc = encode_DIS_ReqHdr(connect, PBS_BATCH_PreemptJobs, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(connect, PBS_BATCH_PreemptJobs, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = encode_DIS_PreemptJobs(connect, preempt_jobs_list)) ||
 		(rc = encode_DIS_ReqExtend(connect, NULL))) {
 			if (set_conn_errtxt(connect, dis_emsg[rc]) != 0) {
@@ -93,7 +89,7 @@ PBSD_preempt_jobs(int connect, char **preempt_jobs_list)
 	else {
 		int i = 0;
 		int count = 0;
-		ppj_temp = reply->brp_un.brp_preempt_jobs.ppj_list;
+		preempt_job_info *ppj_temp = reply->brp_un.brp_preempt_jobs.ppj_list;
 		count = reply->brp_un.brp_preempt_jobs.count;
 
 		ppj_reply = calloc(sizeof(struct preempt_job_info), count);

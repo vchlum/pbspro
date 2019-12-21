@@ -68,14 +68,11 @@ char *
 PBSD_submit_resv(int connect, char *resv_id, struct attropl *attrib, char *extend)
 {
 	struct batch_reply *reply;
-	char  *return_resv_id = NULL;
-	int    rc;
-
-	DIS_tcp_funcs();
+	int rc;
+	char *return_resv_id = NULL;
 
 	/* first, set up the body of the Submit Reservation request */
-
-	if ((rc = encode_DIS_ReqHdr(connect, PBS_BATCH_SubmitResv, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(connect, PBS_BATCH_SubmitResv, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = encode_DIS_SubmitResv(connect, resv_id, attrib)) ||
 		(rc = encode_DIS_ReqExtend(connect, extend))) {
 		if (set_conn_errtxt(connect, dis_emsg[rc]) != 0) {

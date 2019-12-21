@@ -82,10 +82,10 @@
  * collapse_hook_tr
  * sync_mom_hookfiles
  * mk_deferred_hook_info
- * post_sendhookRPP
+ * post_sendhookTPP
  * check_add_hook_mcast_info
  * del_deferred_hook_cmds
- * sync_mom_hookfilesRPP
+ * sync_mom_hookfilesTPP
  * bg_sync_mom_hookfiles
  * add_pending_mom_allhooks_action
  * next_sync_mom_hookfiles
@@ -137,7 +137,7 @@
 #include "hook_func.h"
 #include "net_connect.h"
 #include "sched_cmds.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "reservation.h"
 #include "cmds.h"
 #include "server.h"
@@ -282,7 +282,7 @@ hook_action_tid_set(long long int newval)
  *		Returns the value of the global 'hook_action_tid' variable.
  *
  * @see
- *		sync_mom_hookfilesRPP and bg_sync_mom_hookfiles.
+ *		sync_mom_hookfilesTPP and bg_sync_mom_hookfiles.
  *
  * @return long long int	- the 'hook_action_tid' value.
  */
@@ -5261,7 +5261,7 @@ sync_mom_hookfiles_count(void *minfo)
  * 		the tracking file.
  *
  * @see
- * 		post_sendhookRPP and next_sync_mom_hookfiles.
+ * 		post_sendhookTPP and next_sync_mom_hookfiles.
  */
 static void
 collapse_hook_tr()
@@ -5758,7 +5758,7 @@ mk_deferred_hook_info(int index, int event, long long int tid)
 
 /**
  * @brief
- *		Call back for the hook deferred requests over RPP.
+ *		Call back for the hook deferred requests over TPP.
  *		parm1 points to the mominfo_t
  *		parm2 points to more information about the hook cmd
  *		wt_aux has the reply code from mom
@@ -5779,7 +5779,7 @@ mk_deferred_hook_info(int index, int event, long long int tid)
  * @return void
  */
 void
-post_sendhookRPP(struct work_task *pwt)
+post_sendhookTPP(struct work_task *pwt)
 {
 	mominfo_t	*minfo = pwt->wt_parm1;
 	mom_hook_action_t *pact;
@@ -5802,11 +5802,11 @@ post_sendhookRPP(struct work_task *pwt)
 
 	if (tid != g_sync_hook_tid) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"sendhookRPP reply (tid=%lld) not from current "
+			"post_sendhookTPP reply (tid=%lld) not from current "
 			"batch of hook updates (tid=%lld) from mhost=%s",
 			tid, g_sync_hook_tid, minfo->mi_host ? minfo->mi_host : "");
 		log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_SERVER, LOG_INFO,
-			"post_sendhookRPP", log_buffer);
+			"post_sendhookTPP", log_buffer);
 		return;	/* return now as info->index no longer valid */
 	}
 
@@ -5995,7 +5995,7 @@ post_sendhookRPP(struct work_task *pwt)
  *		static helper function to check and add a hook command to a mom
  *		to a list of multicast commands.
  *
- *		A RPP multicast command consists of the same command to be sent to
+ *		A TPP multicast command consists of the same command to be sent to
  *		a groups of target moms.
  *
  * @param[in] conn      - The stream to the mom
@@ -6031,7 +6031,7 @@ check_add_hook_mcast_info(int conn, mominfo_t *minfo, char *hookname, int action
 			return NULL;
 		}
 
-		if (add_mom_deferred_list(conn, minfo, post_sendhookRPP,
+		if (add_mom_deferred_list(conn, minfo, post_sendhookTPP,
 					dup_msgid, minfo, info) == NULL) {
 			free(info);
 			free(dup_msgid);
@@ -6069,7 +6069,7 @@ check_add_hook_mcast_info(int conn, mominfo_t *minfo, char *hookname, int action
 					g_sync_hook_tid)) == NULL)
 		return NULL;
 
-	if (add_mom_deferred_list(conn, minfo, post_sendhookRPP,
+	if (add_mom_deferred_list(conn, minfo, post_sendhookTPP,
 				strdup(g_hook_mcast_array[i].msgid), minfo, info) == NULL) {
 		free(info);
 		return NULL;
@@ -6103,7 +6103,7 @@ check_add_hook_mcast_info(int conn, mominfo_t *minfo, char *hookname, int action
  *		tracked by index.
  *
  * @see
- * 		sync_mom_hookfilesRPP
+ * 		sync_mom_hookfilesTPP
  *
  * @param[in]	index - The index in the g_hook_mcast_array
  *
@@ -6174,7 +6174,7 @@ del_deferred_hook_cmds(int index)
  * @brief
  *		Performs actions such as send hook attributes/scripts, and also
  *		resourcedef file to a particular mom, or to all the moms in the
- *		system (this function performs this using RPP deferred requests).
+ *		system (this function performs this using TPP deferred requests).
  *
  * @see
  * 		bg_sync_mom_hookfiles and bg_delete_mom_hooks
@@ -6189,7 +6189,7 @@ del_deferred_hook_cmds(int index)
  * @retval	SYNC_HOOKFILES_PARTAIL	if some (not all) mom hook actions failed to be sent.
  */
 enum sync_hookfiles_result
-sync_mom_hookfilesRPP(void *minfo)
+sync_mom_hookfilesTPP(void *minfo)
 {
 	int		i, j;
 	int		conn = -1;	/* a client style connection handle */
@@ -6233,7 +6233,7 @@ sync_mom_hookfilesRPP(void *minfo)
 			continue;
 		}
 
-		tpp_add_close_func(conn, process_DreplyRPP); /* register a close handler */
+		tpp_add_close_func(conn, process_DreplyTPP); /* register a close handler */
 
 		pbs_errno = 0;
 		for (j = 0; j < minfo_array[i]->mi_num_action; j++) {
@@ -6423,7 +6423,7 @@ bg_sync_mom_hookfiles(void)
 			ctime(&g_sync_hook_time));
 	log_event(PBSEVENT_DEBUG4, PBS_EVENTCLASS_SERVER,
 					LOG_INFO, __func__, log_buffer);
-	rc = sync_mom_hookfilesRPP(NULL);
+	rc = sync_mom_hookfilesTPP(NULL);
 	/* transaction id to use for next batch of updates */
 	hook_action_tid_set(hook_action_tid_get()+1);
 	return rc;
@@ -6663,7 +6663,7 @@ bg_delete_mom_hooks(void *minfo)
 	add_pending_mom_allhooks_action(minfo, MOM_HOOK_ACTION_DELETE);
 	add_pending_mom_hook_action(minfo, PBS_RESCDEF,
 		MOM_HOOK_ACTION_DELETE_RESCDEF);
-	return (int)sync_mom_hookfilesRPP(minfo);
+	return (int)sync_mom_hookfilesTPP(minfo);
 }
 
 /**

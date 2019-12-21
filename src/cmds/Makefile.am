@@ -90,10 +90,8 @@ common_cflags = -I$(top_srcdir)/src/include @KRB5_CFLAGS@ @libz_inc@
 
 common_libs = \
 	$(top_builddir)/src/lib/Libpbs/.libs/libpbs.a \
-	$(top_builddir)/src/lib/Liblog/liblog.a \
 	$(top_builddir)/src/lib/Libnet/libnet.a \
 	$(top_builddir)/src/lib/Libsec/libsec.a \
-	$(top_builddir)/src/lib/Libutil/libutil.a \
 	-lpthread \
 	@libz_lib@ \
 	@socket_lib@ \

@@ -304,9 +304,6 @@ shutdown_preempt_chkpt(job *pjob)
 	attribute temp;
 	void (*func)(struct work_task *);
 
-	long *hold_val = NULL;
-	long old_hold = 0;
-
 	phold = alloc_br(PBS_BATCH_HoldJob);
 	if (phold == NULL)
 		return (PBSE_SYSTEM);
@@ -339,7 +336,6 @@ shutdown_preempt_chkpt(job *pjob)
 		(void)job_save(pjob, SAVEJOB_QUICK);
 		return (0);
 	} else {
-		*hold_val = old_hold;	/* reset to the old value */
 		return (-1);
 	}
 }

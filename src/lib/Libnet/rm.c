@@ -59,7 +59,7 @@
 #include	"log.h"
 #include	"dis.h"
 #include	"rm.h"
-#include	"rpp.h"
+#include	"tpp.h"
 #if defined(FD_SET_IN_SYS_SELECT_H)
 #include 	<sys/select.h>
 #endif
@@ -302,10 +302,10 @@ simpleget(int stream)
 	while(1) {
 		/* since tpp recvs are essentially allways non blocking
 		 * we can call a dis function only if we are sure we have
-		 * data on that rpp fd
+		 * data on that tpp fd
 		 */
 		FD_ZERO(&selset);
-		FD_SET(rpp_fd, &selset);
+		FD_SET(tpp_fd, &selset);
 		if (select(FD_SETSIZE, &selset, NULL, NULL, NULL) > 0) {
 			if (tpp_poll() == stream)
 				break;
@@ -723,9 +723,9 @@ activereq()
 			return -1;
 		}
 		else {
-			extern	int	rpp_fd;
+			extern	int	tpp_fd;
 
-			FD_SET(rpp_fd, &fdset);
+			FD_SET(tpp_fd, &fdset);
 			tv.tv_sec = 5;
 			tv.tv_usec = 0;
 			num = select(FD_SETSIZE, &fdset, NULL, NULL, &tv);

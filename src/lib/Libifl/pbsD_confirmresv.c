@@ -83,13 +83,8 @@ __pbs_confirmresv(int c, char *rid, char *location, unsigned long start,
 	if (pbs_client_thread_lock_connection(c) != 0)
 		return pbs_errno;
 
-	/* setup DIS support routines for following DIS calls */
-
-	DIS_tcp_funcs();
-
 	/* send run request */
-
-	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_ConfirmResv, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_ConfirmResv, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = encode_DIS_Run(c, rid, location, start)) ||
 		(rc = encode_DIS_ReqExtend(c, extend))) {
 		if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {

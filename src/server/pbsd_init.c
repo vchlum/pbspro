@@ -106,7 +106,7 @@
 #include "svrfunc.h"
 #include "acct.h"
 #include "pbs_version.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "pbs_license.h"
 #include "resource.h"
 #include "pbs_python.h"

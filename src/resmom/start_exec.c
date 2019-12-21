@@ -77,7 +77,7 @@
 #include "resource.h"
 #include "job.h"
 #include "log.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "dis.h"
 #include "pbs_nodes.h"
 #include "mom_mach.h"
@@ -6071,7 +6071,7 @@ start_exec(job *pjob)
 	int             job_error_code;
 #endif/* MOM_BGL */
 
-	/* make sure we have an open rpp stream back to the server */
+	/* make sure we have an open tpp stream back to the server */
 
 	if (server_stream == -1)
 		send_restart();
@@ -6185,7 +6185,7 @@ start_exec(job *pjob)
 				return;
 			}
 			if (pbs_conf.pbs_use_mcast == 1) {
-				/* add each of the rpp streams to the tpp mcast channel */
+				/* add each of the tpp streams to the tpp mcast channel */
 				if ((tpp_mcast_add_strm(mtfd, np->hn_stream)) == -1) {
 					tpp_close(np->hn_stream);
 					np->hn_stream = -1;
@@ -6331,7 +6331,7 @@ start_exec(job *pjob)
 /**
  * @brief
  *	Forks a child process, with the parent process returning the child
- *	process id, while the child closes shuts down rpp, and closes
+ *	process id, while the child closes shuts down tpp, and closes
  *	network descriptors, and turns off alarm.
  *
  * @param[in]	conn	- connection file descriptor to NOT close in the child.

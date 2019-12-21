@@ -148,10 +148,6 @@
       <Project>{17f70b8b-9669-4f98-95b0-e98eca3d6039}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-    <ProjectReference Include="Libutil.vcxproj">
-      <Project>{625346dc-194a-4e7d-92c4-8f9e10b0bb2a}</Project>
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
     <ProjectReference Include="Libwin.vcxproj">
       <Project>{684975bf-d264-4429-83f2-6fb31dd36366}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>

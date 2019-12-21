@@ -39,10 +39,8 @@
 SUBDIRS = \
 	Libattr \
 	Libdb \
-	Liblog \
 	Libnet \
 	Libpbs \
 	Libpython \
 	Libsite \
-	Libsec \
-	Libutil
+	Libsec

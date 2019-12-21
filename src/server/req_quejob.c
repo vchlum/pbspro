@@ -104,7 +104,7 @@
 #include "sched_cmds.h"
 #include "log.h"
 #include "acct.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "user.h"
 #include "hook.h"
 #include "pbs_internal.h"
@@ -144,12 +144,10 @@ extern struct connection *svr_conn;
 #ifndef PBS_MOM
 extern int    remtree(char *);
 #ifdef NAS /* localmod 005 */
-extern int apply_aoe_inchunk_rules(resource *presc, attribute *pattr,
-	void *pobj,
-	int type);
+extern int apply_aoe_inchunk_rules(resource *, attribute *, void *, int);
 #endif /* localmod 005 */
 void post_sendmom(struct work_task *);
-void post_sendmom_inner(job *jobp, struct batch_request *preq, int wstat, int isrpp, char *err_msg);
+void post_sendmom_inner(job *, struct batch_request *, int, int, char *);
 #endif	/* PBS_MOM */
 
 /* Global Data Items: */
@@ -187,16 +185,13 @@ extern char *msg_nostf_resv;
 extern char *msg_nostf_jobarray;
 #endif
 
-
 /* Private Functions in this file */
-
-static	job	*locate_new_job(struct batch_request *preq, char *jobid);
-
+static	job	*locate_new_job(struct batch_request *, char *);
 #ifndef PBS_MOM	/* SERVER only */
 static	void	handle_qmgr_reply_to_resvQcreate(struct work_task *);
 static	int	get_queue_for_reservation(resc_resv *);
 static	int	ignore_attr(char *);
-static	int	validate_place_req_of_job_in_reservation(job *pj);
+static	int	validate_place_req_of_job_in_reservation(job *);
 
 /* To generate the job/resv id's locally */
 static long long get_next_svr_sequence_id(void);
@@ -315,7 +310,7 @@ req_quejob(struct batch_request *preq)
 	mom_hook_output_t hook_output;
 	int		hook_errcode = 0;
 	int		hook_rc = 0;
-	int		isrpp;
+	int		istpp;
 	char		hook_buf[HOOK_MSG_SIZE];
 	hook		*last_phook = NULL;
 	unsigned int	hook_fail_action = 0;
@@ -551,14 +546,14 @@ req_quejob(struct batch_request *preq)
 
 		if (pj->ji_qs.ji_svrflags & JOB_SVFLG_CHKPT) {
 			pj->ji_qs.ji_substate = JOB_SUBSTATE_TRANSIN;
-			isrpp = preq->isrpp;
+			istpp = preq->istpp;
 			if (reply_jobid(preq, pj->ji_qs.ji_jobid,
 				BATCH_REPLY_CHOICE_Queue) == 0) {
 				delete_link(&pj->ji_alljobs);
 				append_link(&svr_newjobs, &pj->ji_alljobs, pj);
 				pj->ji_qs.ji_un_type = JOB_UNION_TYPE_NEW;
 				pj->ji_qs.ji_un.ji_newt.ji_fromsock = sock;
-				if (!isrpp) {
+				if (!istpp) {
 					pj->ji_qs.ji_un.ji_newt.ji_fromaddr = get_connectaddr(sock);
 				} else {
 					struct sockaddr_in* addr = tpp_getaddr(sock);
@@ -1239,7 +1234,7 @@ req_quejob(struct batch_request *preq)
 #endif
 
 	/* acknowledge the request with the job id */
-	if (!preq->isrpp) {
+	if (!preq->istpp) {
 		pj->ji_qs.ji_un.ji_newt.ji_fromaddr = get_connectaddr(sock);
 		/* acknowledge the request with the job id */
 		if (reply_jobid(preq, pj->ji_qs.ji_jobid, BATCH_REPLY_CHOICE_Queue) != 0) {
@@ -1254,7 +1249,7 @@ req_quejob(struct batch_request *preq)
 		if (addr)
 			pj->ji_qs.ji_un.ji_newt.ji_fromaddr = (pbs_net_t) ntohl(addr->sin_addr.s_addr);
 		free_br(preq);
-		/* No need of acknowledge for RPP */
+		/* No need of acknowledge for TPP */
 	}
 
 #ifndef PBS_MOM
@@ -1851,7 +1846,7 @@ req_commit(struct batch_request *preq)
 	pj->ji_qs.ji_substate = JOB_SUBSTATE_PRERUN;
 	pj->ji_wattr[(int)JOB_ATR_substate].at_flags |= ATR_VFLAG_MODIFY;
 	pj->ji_qs.ji_un_type = JOB_UNION_TYPE_MOM;
-	if (preq->isrpp) {
+	if (preq->istpp) {
 		struct sockaddr_in* addr = tpp_getaddr(preq->rq_conn);
 		if (addr)
 			pj->ji_qs.ji_un.ji_momt.ji_svraddr = (pbs_net_t) ntohl(addr->sin_addr.s_addr);
@@ -2066,7 +2061,7 @@ locate_new_job(struct batch_request *preq, char *jobid)
 
 	sock = preq->rq_conn;
 
-	if (!preq->isrpp) { /* Connection from TCP stream */
+	if (!preq->istpp) { /* Connection from TCP stream */
 		conn_addr = get_connectaddr(sock);
 	} else {
 		struct sockaddr_in* addr = tpp_getaddr(sock);

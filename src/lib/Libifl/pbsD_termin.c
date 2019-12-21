@@ -76,11 +76,7 @@ __pbs_terminate(int c, int manner, char *extend)
 	if (pbs_client_thread_lock_connection(c) != 0)
 		return pbs_errno;
 
-	/* setup DIS support routines for following DIS calls */
-
-	DIS_tcp_funcs();
-
-	if ((rc=encode_DIS_ReqHdr(c, PBS_BATCH_Shutdown, pbs_current_user)) ||
+	if ((rc=encode_DIS_ReqHdr(c, PBS_BATCH_Shutdown, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = encode_DIS_ShutDown(c, manner)) ||
 		(rc = encode_DIS_ReqExtend(c, extend))) {
 		if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {

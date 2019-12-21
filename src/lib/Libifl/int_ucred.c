@@ -90,9 +90,7 @@ PBSD_ucred(int c, char *user, int type, char *buf, int len)
 	if (pbs_client_thread_lock_connection(c) != 0)
 		return pbs_errno;
 
-	DIS_tcp_funcs();
-
-	if ((rc =encode_DIS_ReqHdr(c, PBS_BATCH_UserCred, pbs_current_user)) ||
+	if ((rc =encode_DIS_ReqHdr(c, PBS_BATCH_UserCred, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = encode_DIS_UserCred(c, user, type, buf, len)) ||
 		(rc = encode_DIS_ReqExtend(c, NULL))) {
 		if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {
@@ -149,10 +147,7 @@ PBSD_user_migrate(int c, char *tohost)
 	if (pbs_client_thread_lock_connection(c) != 0)
 		return pbs_errno;
 
-	DIS_tcp_funcs();
-
-	if ((rc =encode_DIS_ReqHdr(c, PBS_BATCH_UserMigrate,
-		pbs_current_user)) ||
+	if ((rc =encode_DIS_ReqHdr(c, PBS_BATCH_UserMigrate, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = encode_DIS_UserMigrate(c, tohost)) ||
 		(rc = encode_DIS_ReqExtend(c, NULL))) {
 		if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {

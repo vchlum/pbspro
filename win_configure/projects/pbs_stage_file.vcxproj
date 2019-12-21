@@ -145,10 +145,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="Liblog.vcxproj">
-      <Project>{1ce3edf8-7001-4756-a85b-df7d0bff4c52}</Project>
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
     <ProjectReference Include="Libnet.vcxproj">
       <Project>{5885bb13-6d58-4ee3-94c8-a8928f1eab00}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>

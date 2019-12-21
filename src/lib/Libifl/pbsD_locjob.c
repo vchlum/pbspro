@@ -84,11 +84,7 @@ __pbs_locjob(int c, char *jobid, char *extend)
 	if (pbs_client_thread_lock_connection(c) != 0)
 		return NULL;
 
-	/* setup DIS support routines for following DIS calls */
-
-	DIS_tcp_funcs();
-
-	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_LocateJob, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(c, PBS_BATCH_LocateJob, pbs_current_user, PROT_TCP, NULL)) ||
 		(rc = encode_DIS_JobId(c, jobid))	   ||
 		(rc = encode_DIS_ReqExtend(c, extend))) {
 		if (set_conn_errtxt(c, dis_emsg[rc]) != 0) {

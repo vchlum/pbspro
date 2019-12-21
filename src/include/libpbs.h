@@ -67,6 +67,11 @@ extern "C" {
 #include "pbs_client_thread.h"
 #include "dis.h"
 
+/* Protocol types when connecting to another server (eg mom) */
+#define PROT_INVALID	-1
+#define PROT_TCP	 0
+#define PROT_TPP	 1
+
 #define PBS_BATCH_PROT_TYPE	2
 #define PBS_BATCH_PROT_VER	1
 /* #define PBS_REQUEST_MAGIC (56) */
@@ -273,7 +278,7 @@ struct batch_reply {
 #define PBS_BATCH_RegistDep	52
 #define PBS_BATCH_CopyFiles	54
 #define PBS_BATCH_DelFiles	55
-#define PBS_BATCH_JobObit	56
+// #define PBS_BATCH_JobObit	56 -- unused
 #define PBS_BATCH_MvJobFile	57
 #define PBS_BATCH_StatusNode	58
 #define PBS_BATCH_Disconnect	59
@@ -329,91 +334,69 @@ struct batch_reply {
 #define FAILOVER_SecdGoInactive  4  /* Primary down, secondary go inactive    */
 #define FAILOVER_SecdTakeOver    5  /* Primary down, secondary take over      */
 
-extern int is_compose(int stream, int command);
-extern int is_compose_cmd(int stream, int command, char **msgid);
-extern void PBS_free_aopl(struct attropl * aoplp);
+extern int is_compose(int, int);
+extern int is_compose_cmd(int, int, char **);
+extern void PBS_free_aopl(struct attropl *);
 extern void advise(char *, ...);
-extern int PBSD_rdytocmt(int connect, char *jobid, int rpp, char **msgid);
-extern int PBSD_commit(int connect, char *jobid, int rpp, char **msgid);
-extern int PBSD_jcred(int connect, int type, char *buf, int len, int rpp, char **msgid);
-extern int PBSD_user_migrate(int connect, char *tohost);
-extern int PBSD_jscript(int connect, char *script_file, int rpp, char **msgid);
-extern int PBSD_jscript_direct(int connect, char *script, int rpp, char **msgid);
-extern int PBSD_copyhookfile(int connect, char *hook_filepath, int rpp, char **msgid);
-extern int PBSD_delhookfile(int connect, char *hook_filename, int rpp, char **msgid);
-extern int PBSD_mgr_put(int connect, int func, int cmd, int objtype,
-	char *objname, struct attropl *al, char *extend, int rpp, char **msgid);
-extern int PBSD_manager  (int connect, int func, int cmd,
-	int objtype, char *objname, struct attropl *al, char *extend);
-extern int PBSD_msg_put(int connect, char *jobid, int fileopt,
-	char *msg, char *extend, int rpp, char **msgid);
-extern int PBSD_relnodes_put(int connect, char *jobid,
-	char *node_list, char *extend, int rpp, char **msgid);
-extern int PBSD_py_spawn_put(int connect, char *jobid,
-	char **argv, char **envp, int rpp, char **msgid);
-extern int PBSD_sig_put(int connect, char *jobid, char *signal, char *extend, int rpp, char **msgid);
-extern int PBSD_term_put(int connect, int manner, char *extend);
-extern int PBSD_jobfile(int connect, int req_type, char *path,
-	char *jobid, enum job_file which, int rpp, char **msgid);
-
-extern int PBSD_status_put(int c, int func, char *id,
-	struct attrl *attrib, char *extend, int rpp, char **msgid);
-extern struct batch_reply *PBSD_rdrpy(int connect);
-extern struct batch_reply *PBSD_rdrpy_sock(int sock, int *rc);
-struct batch_reply *PBSD_rdrpyRPP(int stream);
+extern int PBSD_rdytocmt(int, char *, int, char **);
+extern int PBSD_commit(int, char *, int, char **);
+extern int PBSD_jcred(int, int, char *, int, int, char **);
+extern int PBSD_user_migrate(int, char *);
+extern int PBSD_jscript(int, char *, int, char **);
+extern int PBSD_jscript_direct(int, char *, int, char **);
+extern int PBSD_copyhookfile(int, char *, int, char **);
+extern int PBSD_delhookfile(int, char *, int, char **);
+extern int PBSD_mgr_put(int, int, int, int, char *, struct attropl *, char *, int, char **);
+extern int PBSD_manager  (int, int, int, int, char *, struct attropl *, char *);
+extern int PBSD_msg_put(int, char *, int, char *, char *, int, char **);
+extern int PBSD_relnodes_put(int, char *, char *, char *, int, char **);
+extern int PBSD_py_spawn_put(int, char *, char **, char **, int, char **);
+extern int PBSD_sig_put(int, char *, char *, char *, int, char **);
+extern int PBSD_term_put(int, int, char *);
+extern int PBSD_jobfile(int, int, char *, char *, enum job_file, int, char **);
+extern int PBSD_status_put(int, int, char *, struct attrl *, char *, int, char **);
+extern struct batch_reply * PBSD_rdrpy(int);
 extern void PBSD_FreeReply(struct batch_reply *);
-extern struct batch_status *PBSD_status(int c, int function,
-	char *objid, struct attrl *attrib, char *extend);
-extern preempt_job_info *PBSD_preempt_jobs(int c, char **preempt_jobs_list);
-
-extern struct batch_status *PBSD_status_get(int c);
-extern char * PBSD_queuejob(int c, char *j, char *d,
-	struct attropl *a, char *ex, int rpp, char **msgid);
-extern int decode_DIS_svrattrl(int sock, pbs_list_head *phead);
-extern int decode_DIS_attrl(int sock, struct attrl **ppatt);
-extern int decode_DIS_JobId(int socket, char *jobid);
-extern int decode_DIS_replyCmd(int socket, struct batch_reply *);
-
-extern int encode_DIS_JobCred(int socket, int type, char *cred, int len);
-extern int encode_DIS_UserCred(int socket, char *user, int type, char *cred, int len);
-extern int encode_DIS_UserMigrate(int socket, char *tohost);
-extern int encode_DIS_JobFile(int socket, int, char *, int, char *, int);
-extern int encode_DIS_JobId(int socket, char *);
-extern int encode_DIS_Manage(int socket, int cmd, int objt,
-	char *, struct attropl *);
-extern int encode_DIS_MessageJob(int socket, char *jid, int fopt, char *m);
-extern int encode_DIS_MoveJob(int socket, char *jid, char *dest);
-extern int encode_DIS_ModifyResv(int socket, char *resv_id, struct attropl *aoplp);
-extern int encode_DIS_RelnodesJob(int socket, char *jid, char *node_list);
-extern int encode_DIS_PySpawn(int socket, char *jid, char **argv, char **envp);
-extern int encode_DIS_QueueJob(int socket, char *jid,
-	char *dest, struct attropl *);
-extern int encode_DIS_SubmitResv(int sock, char *resv_id, struct attropl *aoplp);
-extern int encode_DIS_JobCredential(int sock, int type, char *buf, int len);
-extern int encode_DIS_ReqExtend(int socket, char *extend);
-extern int encode_DIS_ReqHdr(int socket, int reqt, char *user);
-extern int encode_DIS_Rescq(int socket, char **rlist, int num);
-extern int encode_DIS_Run(int socket, char *jid, char *where,
-	unsigned long resch);
-extern int encode_DIS_ShutDown(int socket, int manner);
-extern int encode_DIS_SignalJob(int socket, char *jid, char *sig);
-extern int encode_DIS_Status(int socket, char *objid, struct attrl *);
-extern int encode_DIS_attrl(int socket, struct attrl *);
-extern int encode_DIS_attropl(int socket, struct attropl *);
+extern struct batch_status * PBSD_status(int, int, char *, struct attrl *, char *);
+extern preempt_job_info * PBSD_preempt_jobs(int, char **);
+extern struct batch_status * PBSD_status_get(int);
+extern char * PBSD_queuejob(int, char *, char *, struct attropl *, char *, int, char **);
+extern int decode_DIS_svrattrl(int, pbs_list_head *);
+extern int decode_DIS_attrl(int, struct attrl **);
+extern int decode_DIS_JobId(int, char *);
+extern int decode_DIS_replyCmd(int, struct batch_reply *);
+extern int encode_DIS_JobCred(int, int, char *, int);
+extern int encode_DIS_UserCred(int, char *, int, char *, int);
+extern int encode_DIS_UserMigrate(int, char *);
+extern int encode_DIS_JobFile(int, int, char *, int, char *, int);
+extern int encode_DIS_JobId(int, char *);
+extern int encode_DIS_Manage(int, int, int, char *, struct attropl *);
+extern int encode_DIS_MessageJob(int, char *, int, char *);
+extern int encode_DIS_MoveJob(int, char *, char *);
+extern int encode_DIS_ModifyResv(int, char *, struct attropl *);
+extern int encode_DIS_RelnodesJob(int, char *, char *);
+extern int encode_DIS_PySpawn(int, char *, char **, char **);
+extern int encode_DIS_QueueJob(int, char *, char *, struct attropl *);
+extern int encode_DIS_SubmitResv(int, char *, struct attropl *);
+extern int encode_DIS_JobCredential(int, int, char *, int);
+extern int encode_DIS_ReqExtend(int, char *);
+extern int encode_DIS_ReqHdr(int, int, char *, int, char **);
+extern int encode_DIS_Rescq(int, char **, int);
+extern int encode_DIS_Run(int, char *, char *, unsigned long);
+extern int encode_DIS_ShutDown(int, int);
+extern int encode_DIS_SignalJob(int, char *, char *);
+extern int encode_DIS_Status(int, char *, struct attrl *);
+extern int encode_DIS_attrl(int, struct attrl *);
+extern int encode_DIS_attropl(int, struct attropl *);
 extern int encode_DIS_CopyHookFile(int, int, char *, int, char *);
 extern int encode_DIS_DelHookFile(int, char *);
-extern int encode_DIS_PreemptJobs(int socket, char **preempt_jobs_list);
-
-extern char *PBSD_submit_resv(int connect, char *resv_id,
-	struct attropl *attrib, char *extend);
-extern int DIS_reply_read(int socket, struct batch_reply *preply, int rpp);
+extern int encode_DIS_PreemptJobs(int, char **);
+extern char * PBSD_submit_resv(int, char *, struct attropl *, char *);
+extern int DIS_reply_read(int, struct batch_reply *, int);
 extern void pbs_authors(void);
-
-extern int engage_external_authentication(int out, char *server_name, int auth_type, int fromsvr, char *ebuf, int ebufsz);
-extern char *PBSD_modify_resv(int connect, char *resv_id,
-	struct attropl *attrib, char *extend);
-
-extern int PBSD_cred(int c, char *rq_credid, char *jobid, int cred_type, char *data, long validity, int rpp, char **msgid);
+extern int engage_external_authentication(int, char *, int, int, char *, int);
+extern char * PBSD_modify_resv(int, char *, struct attropl *, char *);
+extern int PBSD_cred(int, char *, char *, int, char *, long, int, char **);
 #ifdef	__cplusplus
 }
 #endif

@@ -48,7 +48,7 @@
 #include "libpbs.h"
 #include "dis.h"
 #include "net_connect.h"
-#include "rpp.h"
+#include "tpp.h"
 
 
 /**
@@ -64,6 +64,8 @@
  * @param[in] objtype - object type
  * @param[in] objname - object name
  * @param[in] aoplp - pointer to attropl structure(list)
+ * @param[in] prot - PROT_TCP or PROT_TPP
+ * @param[in] msgid - msg id
  *
  * @return      int
  * @retval      DIS_SUCCESS(0)  success
@@ -71,29 +73,21 @@
  *
  */
 int
-PBSD_mgr_put(int c, int function, int command, int objtype, char *objname,
-		struct attropl *aoplp, char *extend, int rpp, char **msgid)
+PBSD_mgr_put(int c, int function, int command, int objtype, char *objname, struct attropl *aoplp, char *extend, int prot, char **msgid)
 {
 	int rc;
 
-	if (!rpp) {
-		DIS_tcp_funcs();
-	} else {
-		if ((rc = is_compose_cmd(c, IS_CMD, msgid)) != DIS_SUCCESS)
-			return rc;
-	}
-
-	if ((rc = encode_DIS_ReqHdr(c, function, pbs_current_user)) ||
+	if ((rc = encode_DIS_ReqHdr(c, function, pbs_current_user, prot, msgid)) ||
 		(rc = encode_DIS_Manage(c, command, objtype, objname, aoplp)) ||
 		(rc = encode_DIS_ReqExtend(c, extend))) {
-		if (!rpp) {
+		if (prot == PROT_TCP) {
 			if (set_conn_errtxt(c, dis_emsg[rc]) != 0)
 				return (pbs_errno = PBSE_SYSTEM);
 		}
 		return (pbs_errno = PBSE_PROTOCOL);
 	}
 
-	if (rpp) {
+	if (prot == PROT_TPP) {
 		pbs_errno = PBSE_NONE;
 		if (dis_flush(c))
 			pbs_errno = PBSE_PROTOCOL;

@@ -62,7 +62,7 @@
 #include <signal.h>
 #endif
 
-#include "rpp.h"
+#include "tpp.h"
 
 #ifdef WIN32
 

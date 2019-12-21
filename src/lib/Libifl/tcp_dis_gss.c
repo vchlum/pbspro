@@ -425,11 +425,8 @@ int
 tcp_gss_send_auth(int sock)
 {
 	struct batch_reply *reply;
-	int rc;
 
-	DIS_tcp_funcs();
-
-	if (encode_DIS_ReqHdr(sock, PBS_BATCH_AuthExternal, pbs_current_user) ||
+	if (encode_DIS_ReqHdr(sock, PBS_BATCH_AuthExternal, pbs_current_user, PROT_TCP, NULL) ||
 		diswuc(sock, AUTH_GSS) || /* authentication_type */
 		diswsi(sock, 0) || /* credentials length not used */
 		encode_DIS_ReqExtend(sock, NULL)) {
@@ -443,7 +440,7 @@ tcp_gss_send_auth(int sock)
 		return PBS_GSS_ERR_INTERNAL;
 	}
 
-	reply = PBSD_rdrpy_sock(sock, &rc);
+	reply = PBSD_rdrpy(sock);
 
 	if (reply == NULL) {
 		pbs_errno = PBSE_BADCRED;

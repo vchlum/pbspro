@@ -120,7 +120,7 @@ decode_DIS_replyCmd(int sock, struct batch_reply *reply)
 		case BATCH_REPLY_CHOICE_Queue:
 		case BATCH_REPLY_CHOICE_RdytoCom:
 		case BATCH_REPLY_CHOICE_Commit:
-			disrfst(sock, PBS_MAXSVRJOBID+1, reply->brp_un.brp_jid);
+			rc = disrfst(sock, PBS_MAXSVRJOBID+1, reply->brp_un.brp_jid);
 			if (rc)
 				return (rc);
 			break;
