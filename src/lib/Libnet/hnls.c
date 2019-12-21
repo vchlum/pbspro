@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 1994-2019 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
@@ -80,10 +80,8 @@
 #include <unistd.h>
 #include <stropts.h>
 #include <netdb.h>
-
 #endif
 
-extern char	*netaddr(struct sockaddr_in *);
 #define NETADDR_BUF 80
 
 /**
@@ -122,7 +120,7 @@ free_if_hostnames(char **names)
  *
  * @par MT-safe: Yes
  *
- * @param[in]		sockaddr - structure holding information 
+ * @param[in]		sockaddr - structure holding information
  *					about particular address
  * @param[out]		family   - holds the socket's family type
  *					"ipv4" or "ipv6"
@@ -158,7 +156,7 @@ get_sa_family(struct sockaddr *saddr, char *family)
  *
  * @par MT-safe: Yes
  *
- * @param[in]   sockaddr - structure holding information 
+ * @param[in]   sockaddr - structure holding information
  *				about addresses
  *
  * @return char**
@@ -178,7 +176,7 @@ get_if_hostnames(struct sockaddr *saddr)
 	const char *bufp = NULL;
 #ifdef WIN32
 	char host[NI_MAXHOST] = {'\0'};
-	int ret = 0;	
+	int ret = 0;
 #endif /* WIN32 */
 
 	if (!saddr)
@@ -274,7 +272,7 @@ get_if_info(char *msg)
 
 	int c, i, ret;
 	char **hostnames;
-	struct ifaddrs *ifp, *listp;	
+	struct ifaddrs *ifp, *listp;
 
 	if (!msg)
 		return NULL;
@@ -629,7 +627,7 @@ get_all_ips(char *hostname, char *msg_buf, size_t msg_buf_len)
 	for (listp = ifp; listp; listp = listp->ifa_next) {
 		int hlen;
 
-		if ((listp->ifa_addr == NULL) || (listp->ifa_addr->sa_family != AF_INET)) 
+		if ((listp->ifa_addr == NULL) || (listp->ifa_addr->sa_family != AF_INET))
 			continue;
 		sprintf(buf, "%s", netaddr((struct sockaddr_in *)listp->ifa_addr));
 		if (!strcmp(buf,"unknown"))
@@ -659,7 +657,7 @@ get_all_ips(char *hostname, char *msg_buf, size_t msg_buf_len)
 	freeifaddrs(ifp);
 
 #elif defined(WIN32)
-	
+
 	pIPAddrTable = (MIB_IPADDRTABLE *) malloc(sizeof (MIB_IPADDRTABLE));
 
 	if (pIPAddrTable) {
@@ -673,12 +671,12 @@ get_all_ips(char *hostname, char *msg_buf, size_t msg_buf_len)
 		if (pIPAddrTable == NULL) {
 			strncpy(msg_buf, "Memory allocation failed for GetIpAddrTable", msg_buf_len);
 			free(nodenames);
-			return NULL;	
+			return NULL;
 		}
 	}
 	// Make a second call to GetIpAddrTable to get the
 	// actual data we want
-	if ( (dwRetVal = GetIpAddrTable( pIPAddrTable, &dwSize, 0 )) != NO_ERROR ) { 
+	if ( (dwRetVal = GetIpAddrTable( pIPAddrTable, &dwSize, 0 )) != NO_ERROR ) {
 		strncpy(msg_buf, "GetIpAddrTable failed", msg_buf_len);
 		free(pIPAddrTable);
 		free(nodenames);
@@ -712,7 +710,7 @@ get_all_ips(char *hostname, char *msg_buf, size_t msg_buf_len)
 		pIPAddrTable = NULL;
 	}
 
-#endif 
+#endif
 
 	return nodenames;
 }

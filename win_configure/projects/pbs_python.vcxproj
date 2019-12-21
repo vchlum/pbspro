@@ -60,7 +60,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\..\binaries\python_debug\PC;..\..\..\binaries\python_debug\Include;..\..\src\include;..\include;..\..\..\binaries\openssl_debug\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\binaries\zlib;..\..\..\binaries\python_debug\PC;..\..\..\binaries\python_debug\Include;..\..\src\include;..\include;..\..\..\binaries\openssl_debug\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_USE_32BIT_TIME_T;LINKS_PYTHON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -80,10 +80,10 @@
     </ResourceCompile>
     <Link>
       <AdditionalOptions>/SAFESEH %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>libcrypto.lib;crypt32.lib;secur32.lib;Userenv.lib;mpr.lib;netapi32.lib;ws2_32.lib;odbc32.lib;odbccp32.lib;python36_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>zlib.lib;libcrypto.lib;crypt32.lib;secur32.lib;Userenv.lib;mpr.lib;netapi32.lib;ws2_32.lib;odbc32.lib;odbccp32.lib;python36_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>..\..\..\win_build\src\tools\Debug\pbs_python.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\..\..\binaries\openssl_debug\lib;..\..\..\binaries\python_debug\PCbuild\win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\binaries\zlib;..\..\..\binaries\openssl_debug\lib;..\..\..\binaries\python_debug\PCbuild\win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>..\..\..\win_build\src\tools\Debug\pbs_python.pdb</ProgramDatabaseFile>
@@ -101,7 +101,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>..\..\..\binaries\python\include;..\..\src\include;..\include;..\..\..\binaries\openssl\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\binaries\zlib;..\..\..\binaries\python\include;..\..\src\include;..\include;..\..\..\binaries\openssl\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_USE_32BIT_TIME_T;LINKS_PYTHON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
@@ -121,10 +121,10 @@
     </ResourceCompile>
     <Link>
       <AdditionalOptions>/SAFESEH %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>libcrypto.lib;crypt32.lib;secur32.lib;Userenv.lib;mpr.lib;netapi32.lib;ws2_32.lib;odbc32.lib;odbccp32.lib;python36.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>zlib.lib;libcrypto.lib;crypt32.lib;secur32.lib;Userenv.lib;mpr.lib;netapi32.lib;ws2_32.lib;odbc32.lib;odbccp32.lib;python36.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>..\..\..\win_build\src\tools\Release\pbs_python.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\..\..\binaries\openssl\lib;..\..\..\binaries\python\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\binaries\zlib;..\..\..\binaries\openssl\lib;..\..\..\binaries\python\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <ProgramDatabaseFile>..\..\..\win_build\src\tools\Release\pbs_python.pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>

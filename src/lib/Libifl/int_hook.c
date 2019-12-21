@@ -100,7 +100,7 @@ PBSD_hookbuf(int c, int reqtype, int seq, char *buf, int len,
 
 	if (rpp) {
 		pbs_errno = PBSE_NONE;
-		if (rpp_flush(c))
+		if (dis_flush(c))
 			pbs_errno = PBSE_PROTOCOL;
 		return pbs_errno;
 	}
@@ -218,7 +218,7 @@ PBSD_delhookfile(int c, char *hook_filename, int rpp, char **msgid)
 
 	if (rpp) {
 		pbs_errno = PBSE_NONE;
-		if (rpp_flush(c))
+		if (dis_flush(c))
 			pbs_errno = PBSE_PROTOCOL;
 		return pbs_errno;
 	}

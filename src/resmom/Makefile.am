@@ -56,7 +56,6 @@ pbs_mom_LDADD = \
 	$(top_builddir)/src/lib/Libpbs/.libs/libpbs.a \
 	$(top_builddir)/src/lib/Libsec/libsec.a \
 	$(top_builddir)/src/lib/Libsite/libsite.a \
-	$(top_builddir)/src/lib/Libtpp/libtpp.a \
 	$(top_builddir)/src/lib/Libutil/libutil.a \
 	@hwloc_lib@ \
 	@pmix_lib@ \
@@ -127,4 +126,3 @@ EXTRA_DIST = \
 	darwin/mom_mach.h \
 	darwin/mom_start.c \
 	darwin/pe_input.c
-

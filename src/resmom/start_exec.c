@@ -1096,7 +1096,7 @@ rmtmpdir(char *jobid)
 	if (pid > 0)		/* parent */
 		return;
 
-	rpp_terminate();
+	tpp_terminate();
 	execl(rm, "pbs_cleandir", rf, newdir, NULL);
 	log_err(errno, __func__, "execl");
 	exit(21);
@@ -4781,7 +4781,7 @@ start_process(task *ptask, char **argv, char **envp, bool nodemux)
 		 ** We always have a stream open to MS at node 0.
 		 */
 		i = pjob->ji_hosts[0].hn_stream;
-		if ((ap = rpp_getaddr(i)) == NULL) {
+		if ((ap = tpp_getaddr(i)) == NULL) {
 			log_joberr(-1, __func__, "no stream to MS",
 				pjob->ji_qs.ji_jobid);
 			return PBSE_SYSTEM;
@@ -6176,9 +6176,9 @@ start_exec(job *pjob)
 		for (i = 1; i < nodenum; i++) {
 			np = &pjob->ji_hosts[i];
 
-			np->hn_stream = rpp_open(np->hn_host, np->hn_port);
+			np->hn_stream = tpp_open(np->hn_host, np->hn_port);
 			if (np->hn_stream < 0) {
-				sprintf(log_buffer, "rpp_open failed on %s:%d",
+				sprintf(log_buffer, "tpp_open failed on %s:%d",
 					np->hn_host, np->hn_port);
 				log_err(errno, __func__, log_buffer);
 				exec_bail(pjob, JOB_EXEC_FAIL1, NULL);
@@ -6187,7 +6187,7 @@ start_exec(job *pjob)
 			if (pbs_conf.pbs_use_mcast == 1) {
 				/* add each of the rpp streams to the tpp mcast channel */
 				if ((tpp_mcast_add_strm(mtfd, np->hn_stream)) == -1) {
-					rpp_close(np->hn_stream);
+					tpp_close(np->hn_stream);
 					np->hn_stream = -1;
 					tpp_mcast_close(mtfd);
 					sprintf(log_buffer, "mcast add failed");
@@ -6359,7 +6359,7 @@ fork_me(int conn)
 
 		/* Turn off alarm if it should happen to be on */
 		alarm(0);
-		rpp_terminate();
+		tpp_terminate();
 		(void)close(lockfds);
 
 		/* Reset signal actions for most to SIG_DFL */

@@ -82,6 +82,7 @@
       <AdditionalDependencies>secur32.lib;Userenv.lib;mpr.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>..\..\..\win_build\src\tools\Debug\pbs_sleep.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
+      <AdditionalLibraryDirectories>..\..\..\binaries\zlib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>..\..\..\win_build\src\tools\Debug\pbs_sleep.pdb</ProgramDatabaseFile>
@@ -122,6 +123,7 @@
       <AdditionalDependencies>secur32.lib;Userenv.lib;mpr.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>..\..\..\win_build\src\tools\Release\pbs_sleep.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
+      <AdditionalLibraryDirectories>..\..\..\binaries\zlib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
       <ProgramDatabaseFile>..\..\..\win_build\src\tools\Release\pbs_sleep.pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>

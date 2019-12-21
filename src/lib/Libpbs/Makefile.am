@@ -48,11 +48,12 @@ libpbs_la_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 #
 pkgconfig_DATA = pbs.pc
 
-libpbs_la_LDFLAGS = -version-info 0:0:0 @KRB5_LIBS@
+libpbs_la_LDFLAGS = -version-info 0:0:0 @KRB5_LIBS@ @libz_inc@
 
 libpbs_la_LIBADD= \
 	-lcrypto \
-	-lpthread
+	-lpthread \
+	@libz_lib@
 
 libpbs_la_SOURCES = \
 	../Libattr/attr_fn_arst.c \
@@ -278,6 +279,13 @@ libpbs_la_SOURCES = \
 	../Libutil/krb5_util.c \
 	../Libutil/pbs_gss.c \
 	../Libnet/hnls.c \
+	../Libtpp/tpp_client.c \
+	../Libtpp/tpp_em.c \
+	../Libtpp/tpp_platform.c \
+	../Libtpp/tpp_router.c \
+	../Libtpp/tpp_transport.c \
+	../Libtpp/tpp_util.c \
+	../Libtpp/tpp_gss.c \
 	ecl_job_attr_def.c \
 	ecl_svr_attr_def.c \
 	ecl_sched_attr_def.c \

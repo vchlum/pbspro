@@ -145,6 +145,7 @@
 #include "dis.h"
 #include "acct.h"
 
+
 /* External functions */
 extern void disable_svr_prov();
 extern void set_srv_prov_attributes();
@@ -6232,7 +6233,7 @@ sync_mom_hookfilesRPP(void *minfo)
 			continue;
 		}
 
-		rpp_add_close_func(conn, process_DreplyRPP); /* register a close handler */
+		tpp_add_close_func(conn, process_DreplyRPP); /* register a close handler */
 
 		pbs_errno = 0;
 		for (j = 0; j < minfo_array[i]->mi_num_action; j++) {
@@ -7348,7 +7349,7 @@ run_periodic_hook(struct work_task *ptask)
 	else {
 		/* Close all server connections */
 		net_close(-1);
-		rpp_terminate();
+		tpp_terminate();
 		/* Unprotect child from being killed by kernel */
 		daemon_protect(0, PBS_DAEMON_PROTECT_OFF);
 

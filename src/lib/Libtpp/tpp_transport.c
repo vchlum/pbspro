@@ -72,8 +72,6 @@
 #include <signal.h>
 
 #include "rpp.h"
-#include "tpp_common.h"
-#include "tpp_platform.h"
 
 #define TPP_CONN_DISCONNECTED   1 /* Channel is disconnected */
 #define TPP_CONN_INITIATING     2 /* Channel is initiating */
@@ -608,7 +606,7 @@ tpp_transport_init(struct tpp_config *conf)
 	if (conf->node_type == TPP_ROUTER_NODE) {
 		char *host;
 		int port;
-		
+
 		if ((host = tpp_parse_hostname(conf->node_name, &port)) == NULL) {
 			tpp_log_func(LOG_CRIT, __func__, "Out of memory parsing pbs_comm name");
 			return -1;
@@ -1229,7 +1227,7 @@ tpp_transport_isresvport(int tfd)
  * @return	Error code
  * @retval	1	Failure
  * @retval	0	Success
- * 
+ *
  * @par Side Effects:
  *	None
  *
@@ -1313,7 +1311,7 @@ add_transport_conn(phy_conn_t *conn)
 			srand(time(NULL));
 			start = (rand() % (IPPORT_RESERVED - 1)) + 1;
 			tryport = start;
-			
+
 			while (1) {
 				struct sockaddr_in serveraddr;
 				/* bind this socket to a reserved port */
@@ -1931,7 +1929,7 @@ handle_disconnect(phy_conn_t *conn)
 	 */
 	if (tpp_enque(&conn->td->close_conn_que, conn) == NULL)
 		tpp_log_func(LOG_CRIT, __func__, "Out of memory queueing close connection");
-	
+
 	return 0;
 }
 
@@ -2472,17 +2470,17 @@ tpp_transport_terminate()
 	 * calls pthread_mutex_destroy, so don't call them.
 	 * Also never log anything from a terminate handler
 	 *
-	 * Don't bother to free any TPP data as well, as the forked 
+	 * Don't bother to free any TPP data as well, as the forked
 	 * process is usually short lived and no point spending time
-	 * freeing space on a short lived forked process. Besides, 
-	 * the TPP thread which is lost after fork might have been in 
+	 * freeing space on a short lived forked process. Besides,
+	 * the TPP thread which is lost after fork might have been in
 	 * between using these data when the fork happened, so freeing
 	 * some structures might be dangerous.
 	 *
-	 * Thus the only thing we do here is to close file/sockets 
+	 * Thus the only thing we do here is to close file/sockets
 	 * so that the kernel can recognize when a close happens from the
 	 * main process.
-	 * 
+	 *
 	 */
 	tpp_log_func = tpp_dummy_logfunc;
 

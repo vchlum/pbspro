@@ -45,6 +45,4 @@ SUBDIRS = \
 	Libpython \
 	Libsite \
 	Libsec \
-	Libtpp \
 	Libutil
-

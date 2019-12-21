@@ -73,14 +73,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
-#ifdef PBS_COMPRESSION_ENABLED
-#include <zlib.h>
-#endif
-
 #include "avltree.h"
-
 #include "rpp.h"
-#include "tpp_common.h"
+
 
 #define RLIST_INC 100
 #define TPP_MAX_ROUTERS 5000

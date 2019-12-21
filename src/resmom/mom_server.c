@@ -88,6 +88,7 @@
 
 
 
+
 /* Global Data Items */
 extern	u_Long		av_phy_mem;	/* phyical memory in KB */
 extern	unsigned int	default_server_port;
@@ -385,7 +386,7 @@ reply_hello4(int stream)
 
 	}
 
-	rpp_flush(stream);
+	dis_flush(stream);
 	return;
 
 err:
@@ -395,7 +396,7 @@ err:
 	if (errno != 10054)
 #endif
 		log_err(errno, "send_resc_used", log_buffer);
-	rpp_close(stream);
+	tpp_close(stream);
 }
 
 /**
@@ -435,7 +436,7 @@ process_IS_CMD(int stream)
 	struct	sockaddr_in	*addr;
 	char *msgid = NULL;
 
-	addr = rpp_getaddr(stream);
+	addr = tpp_getaddr(stream);
 	if (addr == NULL) {
 		sprintf(log_buffer, "Sender unknown");
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_REQUEST, LOG_DEBUG, "?", log_buffer);
@@ -546,7 +547,7 @@ send_hook_job_action(struct hook_job_action *phjba)
 			goto err;
 		pka = GET_NEXT(pka->hja_link);
 	}
-	rpp_flush(server_stream);
+	dis_flush(server_stream);
 	return;
 
 err:
@@ -674,7 +675,7 @@ send_hook_checksums(void)
 	if (ret != DIS_SUCCESS)
 		goto err;
 
-	(void)rpp_flush(server_stream);
+	(void)dis_flush(server_stream);
 
 	return DIS_SUCCESS;
 
@@ -731,23 +732,23 @@ is_request(int stream, int version)
 	if (version != IS_PROTOCOL_VER) {
 		sprintf(log_buffer, "protocol version %d unknown", version);
 		log_err(-1, __func__, log_buffer);
-		rpp_close(stream);
+		tpp_close(stream);
 		return;
 	}
 
 	/* check that machine is okay to be a server */
-	addr = rpp_getaddr(stream);
+	addr = tpp_getaddr(stream);
 	if (addr == NULL) {
 		sprintf(log_buffer, "Sender unknown");
 		log_err(-1, __func__, log_buffer);
-		rpp_close(stream);
+		tpp_close(stream);
 		return;
 	}
 	ipaddr = ntohl(addr->sin_addr.s_addr);
 	if (!addrfind(ipaddr)) {
 		sprintf(log_buffer, "bad connect from %s", netaddr(addr));
 		log_err(PBSE_BADHOST, __func__, log_buffer);
-		rpp_close(stream);
+		tpp_close(stream);
 		return;
 	}
 
@@ -852,7 +853,7 @@ is_request(int stream, int version)
 			if (ret != DIS_EOD)
 				goto err;
 			is_compose(stream, IS_MOM_READY);  /* tell server we're ready */
-			rpp_flush(stream);
+			dis_flush(stream);
 			if (send_hook_checksums() != DIS_SUCCESS)
 				goto err;
 			/* send any unacknowledged hook job and vnl action requests */
@@ -894,7 +895,7 @@ is_request(int stream, int version)
 			if (ret != DIS_EOD)
 				goto err;
 			is_compose(stream, IS_MOM_READY);  /* tell server we're ready */
-			rpp_flush(stream);
+			dis_flush(stream);
 
 			if (send_hook_checksums() != DIS_SUCCESS)
 				goto err;
@@ -1147,7 +1148,7 @@ is_request(int stream, int version)
 			jobid = NULL;
 			if ((ret=diswsi(server_stream, n)) != DIS_SUCCESS)
 				goto err;
-			rpp_flush(server_stream);
+			dis_flush(server_stream);
 			break;
 
 		case IS_CMD:
@@ -1218,7 +1219,7 @@ is_request(int stream, int version)
 			goto err;
 	}
 
-	rpp_eom(stream);
+	tpp_eom(stream);
 	return;
 
 err:
@@ -1228,7 +1229,7 @@ err:
 	 */
 	sprintf(log_buffer, "%s from %s", dis_emsg[ret], netaddr(addr));
 	log_err(-1, __func__, log_buffer);
-	rpp_close(stream);
+	tpp_close(stream);
 	if (filen)
 		fclose(filen);
 	if (jobid)
@@ -1338,7 +1339,7 @@ hook_requests_to_server(pbs_list_head *plist)
 		if (ret != DIS_SUCCESS)
 			goto hook_requests_to_server_err;
 
-		rpp_flush(server_stream);
+		dis_flush(server_stream);
 
 		pvna = nxt;	/* next set of vnl changes */
 	}
@@ -1458,13 +1459,13 @@ state_to_server(int what_to_update)
 	if (ret != DIS_SUCCESS)
 		goto err;
 
-	rpp_flush(server_stream);
+	dis_flush(server_stream);
 	internal_state_update = 0;
 	return;
 
 err:
 	log_err(errno, "state_to_server", (char *)dis_emsg[ret]);
-	rpp_close(server_stream);
+	tpp_close(server_stream);
 	server_stream = -1;
 }
 
@@ -1527,13 +1528,13 @@ register_with_server(void)
 	/* breakage of protocol.	  */
 	if (ret != DIS_SUCCESS)
 		goto err;
-	rpp_flush(server_stream);
+	dis_flush(server_stream);
 
 	return;
 
 err:
 	log_err(errno, "register_with_server", (char *)dis_emsg[ret]);
-	rpp_close(server_stream);
+	tpp_close(server_stream);
 	server_stream = -1;
 	return;
 }
@@ -1610,7 +1611,7 @@ send_resc_used(int cmd, int count, struct resc_used_update *rud)
 
 		rud = rud->ru_next;
 	}
-	rpp_flush(server_stream);
+	dis_flush(server_stream);
 	return;
 
 err:
@@ -1621,7 +1622,7 @@ err:
 		log_err(errno, "send_resc_used", log_buffer);
 
 	if (cmd != IS_RESCUSED_FROM_HOOK) {
-		rpp_close(server_stream);
+		tpp_close(server_stream);
 		server_stream = -1;
 	}
 	return;
@@ -1656,13 +1657,13 @@ send_wk_job_idle(char *jobid, int idle)
 	ret = diswst(server_stream, jobid);
 	if (ret != DIS_SUCCESS)
 		goto err;
-	rpp_flush(server_stream);
+	dis_flush(server_stream);
 	return;
 
 err:
 	sprintf(log_buffer, "%s for %d", dis_emsg[ret], idle);
 	log_err(errno, "send_wk_job_idle", log_buffer);
-	rpp_close(server_stream);
+	tpp_close(server_stream);
 	server_stream = -1;
 	return;
 }
@@ -1799,7 +1800,7 @@ send_sched_recycle(char *hook_user)
 	ret = diswst(server_stream, hook_user);
 	if (ret != DIS_SUCCESS)
 		goto recycle_err;
-	ret = rpp_flush(server_stream);
+	ret = dis_flush(server_stream);
 	if (ret != DIS_SUCCESS)
 		goto recycle_err;
 	return (0);

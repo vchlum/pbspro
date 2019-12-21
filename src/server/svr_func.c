@@ -193,6 +193,7 @@
 #include "pbs_ecl.h"
 #include "pbs_sched.h"
 
+
 extern struct python_interpreter_data  svr_interp_data;
 
 extern time_t time_now;
@@ -6346,7 +6347,7 @@ start_vnode_provisioning(struct prov_vnode_info * prov_vnode_info)
 		alarm(0);
 		/* standard rpp closure and net close */
 		net_close(-1);
-		rpp_terminate();
+		tpp_terminate();
 
 		/* Reset signal actions for most to SIG_DFL */
 		sigemptyset(&act.sa_mask);

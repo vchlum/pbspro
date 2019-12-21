@@ -90,7 +90,7 @@ char   *resc_in_err = NULL;
 
 extern struct pbs_err_to_txt pbs_err_to_txt[];
 extern int pbs_tcp_errno;
-extern int rpp_flush(int index);
+extern int dis_flush(int index);
 
 void reply_free(struct batch_reply *prep);
 

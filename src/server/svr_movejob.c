@@ -97,6 +97,7 @@
 #include "acct.h"
 
 
+
 #define	RETRY	3	/* number of times to retry network move */
 
 /* External functions called */
@@ -559,7 +560,7 @@ send_job_exec(job *jobp, pbs_net_t hostaddr, int port, struct batch_request *req
 	if (jobid == NULL)
 		goto send_err;
 
-	rpp_add_close_func(stream, process_DreplyRPP); /* register a close handler */
+	tpp_add_close_func(stream, process_DreplyRPP); /* register a close handler */
 
 	/* adding msgid to deferred list, dont free msgid */
 	if ((ptask = add_mom_deferred_list(stream, pmom, post_sendmom, msgid, request, jobp)) == NULL) {
@@ -758,7 +759,7 @@ send_job(job *jobp, pbs_net_t hostaddr, int port, int move_type,
 	 * set up signal cather for error return
 	 */
 	DBPRT(("%s: child started, sending to port %d\n", __func__, port))
-	rpp_terminate();
+	tpp_terminate();
 
 	/* Unprotect child from being killed by kernel */
 	daemon_protect(0, PBS_DAEMON_PROTECT_OFF);

@@ -97,7 +97,7 @@ PBSD_jcred(int c, int type, char *buf, int len, int rpp, char **msgid)
 
 	if (rpp) {
 		pbs_errno = PBSE_NONE;
-		if (rpp_flush(c))
+		if (dis_flush(c))
 			pbs_errno = PBSE_PROTOCOL;
 
 		return (pbs_errno);

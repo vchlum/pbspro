@@ -47,7 +47,7 @@
 #include <gssapi.h>
 
 #include "rpp.h"
-#include "tpp_common.h"
+
 #include "libutil.h"
 
 #include "pbs_gss.h"

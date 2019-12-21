@@ -1240,7 +1240,7 @@ post_reply(job *pjob, int err)
 			pjob->ji_postevent, pjob->ji_taskid, IM_OLD_PROTOCOL_VER);
 		(void)diswsi(stream, err);
 	}
-	(void)rpp_flush(stream);
+	(void)dis_flush(stream);
 
 	pjob->ji_postevent = TM_NULL_EVENT;
 	pjob->ji_taskid = TM_NULL_TASK;

@@ -64,6 +64,7 @@
 #include "batch_request.h"
 #include "pbs_nodes.h"
 #include "mom_func.h"
+
 /**
  * @file	stage_func.c
  */
@@ -1240,7 +1241,7 @@ rmjobdir(char *jobid, char *jobdir, uid_t uid, gid_t gid)
 		return;
 	}
 
-	rpp_terminate();
+	tpp_terminate();
 	execl(rm, "pbs_cleandir", rf, newdir, NULL);
 	log_err(errno, __func__, "execl");
 	exit(21);

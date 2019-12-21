@@ -51,7 +51,6 @@
  * 	pbs_close_stdfiles()
  * 	clear_exec_vnode()
  * 	log_rppfail()
- * 	log_tppmsg()
  * 	make_server_auto_restart()
  * 	reap_child()
  * 	can_schedule()
@@ -135,6 +134,7 @@
 #include <pbs_python.h>  /* for python interpreter */
 #include "pbs_undolr.h"
 
+
 /* External functions called */
 
 extern int  pbsd_init(int);
@@ -170,7 +170,6 @@ static int db_oper_failed_times = 0;
 static int last_rc = -1; /* we need to reset db_oper_failed_times for each state change of the db */
 static int db_delay = 0;
 static int touch_db_stop_file(void);
-static void log_tppmsg(int level, const char *objname, char *mess);
 #define MAX_DB_RETRIES			5
 #define MAX_DB_LOOP_DELAY		10
 #define HOT_START_PING_RATE		15
@@ -337,7 +336,7 @@ int tpp_network_up = 0;
 void
 net_restore_handler(void *data)
 {
-	log_tppmsg(LOG_INFO, NULL, "net restore handler called");
+	tpp_log_func(LOG_INFO, NULL, "net restore handler called");
 	tpp_network_up = 1;
 	ping_nodes(NULL);
 }
@@ -357,7 +356,7 @@ net_down_handler(void *data)
 	if (tpp_network_up == 1) {
 		tpp_network_up = 0;
 		/* now loop and set all nodes to down */
-		log_tppmsg(LOG_CRIT, NULL, "marking all nodes unknown");
+		tpp_log_func(LOG_CRIT, NULL, "marking all nodes unknown");
 		mark_nodes_unknown(1);
 	}
 }
@@ -419,7 +418,7 @@ do_rpp(int stream)
 	void			is_request(int, int);
 	void			stream_eof(int, int, char *);
 
-	DIS_rpp_funcs();
+	DIS_tpp_funcs();
 	proto = disrsi(stream, &ret);
 	if (ret != DIS_SUCCESS) {
 		stream_eof(stream, ret, NULL);
@@ -449,7 +448,7 @@ do_rpp(int stream)
 
 /**
  * @brief
- * 		Read the stream using rpp_poll and invoke do_rpp using that stream.
+ * 		Read the stream using tpp_poll and invoke do_rpp using that stream.
  *
  * @param[in]	fd	- not used.
  *
@@ -474,8 +473,8 @@ rpp_request(int fd)
 	for (iloop = 0; iloop < rpp_max_pkt_check; iloop++) {
 		int	stream;
 
-		if ((stream = rpp_poll()) == -1) {
-			log_err(errno, __func__, "rpp_poll");
+		if ((stream = tpp_poll()) == -1) {
+			log_err(errno, __func__, "tpp_poll");
 			break;
 		}
 		if (stream == -2)
@@ -616,35 +615,6 @@ log_rppfail(char *mess)
 {
 	log_event(PBSEVENT_DEBUG, LOG_DEBUG,
 		PBS_EVENTCLASS_SERVER, "rpp", mess);
-}
-
-/**
- * @brief
- *		This is the log handler for tpp implemented in the daemon. The pointer to
- *		this function is used by the Libtpp layer when it needs to log something to
- *		the daemon logs
- *
- * @param[in]	level   - Logging level
- * @param[in]	objname - Name of the object about which logging is being done
- * @param[in]	mess    - The log message
- *
- */
-static void
-log_tppmsg(int level, const char *objname, char *mess)
-{
-	char id[2*PBS_MAXHOSTNAME];
-	int thrd_index;
-	int etype = log_level_2_etype(level);
-
-	thrd_index = tpp_get_thrd_index();
-	if (thrd_index == -1)
-		snprintf(id, sizeof(id), "%s(Main Thread)", (objname != NULL) ? objname : msg_daemonname);
-	else
-		snprintf(id, sizeof(id), "%s(Thread %d)", (objname != NULL) ? objname : msg_daemonname, thrd_index);
-
-	log_event(etype, PBS_EVENTCLASS_TPP, level, id, mess);
-	DBPRT((mess));
-	DBPRT(("\n"));
 }
 
 /**
@@ -1521,9 +1491,7 @@ try_db_again:
 		return (1);
 	}
 
-	/* set tpp function pointers */
-	set_tpp_funcs(log_tppmsg);
-	rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_server_port_dis, pbs_conf.pbs_leaf_routers);
+	rc = set_tpp_config(NULL, &pbs_conf, &tpp_conf, nodename, pbs_server_port_dis, pbs_conf.pbs_leaf_routers);
 	free(nodename);
 	if (rc == -1) {
 		(void) sprintf(log_buffer, "Error setting TPP config");
@@ -1888,7 +1856,7 @@ try_db_again:
 
 	shutdown_ack();
 	net_close(-1);		/* close all network connections */
-	rpp_shutdown();
+	tpp_shutdown();
 
 	/*
 	 * SERVER is going to be shutdown, delete AVL tree using

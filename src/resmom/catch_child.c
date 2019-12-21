@@ -83,6 +83,7 @@
 #include "hook.h"
 #include "renew_creds.h"
 
+
 /**
  * @file	catch_child.c
  */
@@ -1595,7 +1596,7 @@ scan_for_exiting(void)
 						pobit->oe_u.oe_tm.oe_taskid, IM_OLD_PROTOCOL_VER);
 					(void)diswsi(pnode->hn_stream,
 						ptask->ti_qs.ti_exitstat);
-					(void)rpp_flush(pnode->hn_stream);
+					(void)dis_flush(pnode->hn_stream);
 				}
 
 end_loop:
@@ -1714,7 +1715,7 @@ end_loop:
 					resc_used(pjob, "cpupercent", gettime));
 				(void)send_resc_used_to_ms(stream,
 							pjob->ji_qs.ji_jobid);
-				(void)rpp_flush(stream);
+				(void)dis_flush(stream);
 				pjob->ji_obit = TM_NULL_EVENT;
 			}
 			continue;
@@ -1930,10 +1931,10 @@ send_restart_rpp(char *svr, unsigned int port)
 {
 	int		j;
 
-	j = rpp_open(svr, port);
+	j = tpp_open(svr, port);
 
 	if (j < 0) {
-		(void)sprintf(log_buffer, "rpp_open(%s, %d) failed", svr, port);
+		(void)sprintf(log_buffer, "tpp_open(%s, %d) failed", svr, port);
 		log_err(errno, msg_daemonname, log_buffer);
 		return;
 	}
@@ -1941,16 +1942,16 @@ send_restart_rpp(char *svr, unsigned int port)
 	if (is_compose(j, IS_RESTART) != DIS_SUCCESS) {
 		(void)sprintf(log_buffer, "Failed to compose restart message");
 		log_err(errno, msg_daemonname, log_buffer);
-		rpp_close(j);
+		tpp_close(j);
 		return;
 	}
 
 	(void)diswui(j, pbs_mom_port);
-	rpp_flush(j);
+	dis_flush(j);
 	(void)sprintf(log_buffer, "Restart sent to server at %s:%d", svr, port);
 	log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_NOTICE,
 		msg_daemonname, log_buffer);
-	rpp_close(j);
+	tpp_close(j);
 }
 
 /**
@@ -1974,8 +1975,8 @@ send_restart(void)
 			server_stream);
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_NOTICE,
 			msg_daemonname, log_buffer);
-		rpp_flush(server_stream);
-		rpp_close(server_stream);
+		dis_flush(server_stream);
+		tpp_close(server_stream);
 		server_stream = -1;
 	}
 

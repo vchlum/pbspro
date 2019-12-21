@@ -686,7 +686,7 @@ conn_to_mom_failed(job *pjob, void(*func)(struct work_task *))
 	if (pjob->ji_mom_prot == PROT_TCP) {
 		svr_disconnect(pjob->ji_momhandle);
 	} else {
-		rpp_close(pjob->ji_momhandle);
+		tpp_close(pjob->ji_momhandle);
 	}
 	pjob->ji_momhandle = -1;
 	ptask = set_task(WORK_Immed, 0, func, pjob);

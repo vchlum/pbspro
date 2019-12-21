@@ -64,6 +64,7 @@
 #include 	<sys/select.h>
 #endif
 
+
 /**
  * @file	rm.c
  */
@@ -138,13 +139,13 @@ openrm(char *host, unsigned int port)
 		port = pbs_conf.manager_service_port;
 	DBPRT(("using port %u\n", port))
 
-	stream = rpp_open(host, port);
+	stream = tpp_open(host, port);
 	pbs_errno = errno;
 	if (stream < 0)
 		return -1;
 	if (addrm(stream) == -1) {
 		pbs_errno = errno;
-		rpp_close(stream);
+		tpp_close(stream);
 		return -1;
 	}
 	return stream;
@@ -173,7 +174,7 @@ delrm(int stream)
 		prev = op;
 	}
 	if (op) {
-		rpp_close(stream);
+		tpp_close(stream);
 
 		if (prev)
 			prev->next = op->next;
@@ -227,7 +228,7 @@ startcom(int stream, int com)
 {
 	int	ret;
 
-	DIS_rpp_funcs();
+	DIS_tpp_funcs();
 	ret = diswsi(stream, RM_PROTOCOL);
 	if (ret == DIS_SUCCESS) {
 		ret = diswsi(stream, RM_PROTOCOL_VER);
@@ -268,16 +269,16 @@ int	com;
 	op->len = -1;
 
 	if (startcom(stream, com) != DIS_SUCCESS) {
-		rpp_close(stream);
+		tpp_close(stream);
 		return -1;
 	}
-	if (rpp_flush(stream) == -1) {
+	if (dis_flush(stream) == -1) {
 		pbs_errno = errno;
 		DBPRT(("simplecom: flush error %d\n", pbs_errno))
-		rpp_close(stream);
+		tpp_close(stream);
 		return -1;
 	}
-	(void)rpp_eom(stream);
+	(void)tpp_eom(stream);
 	return 0;
 }
 
@@ -306,7 +307,7 @@ simpleget(int stream)
 		FD_ZERO(&selset);
 		FD_SET(rpp_fd, &selset);
 		if (select(FD_SETSIZE, &selset, NULL, NULL, NULL) > 0) {
-			if (rpp_poll() == stream)
+			if (tpp_poll() == stream)
 				break;
 		} else
 			break; /* let it flow down and fail in the DIS read */
@@ -316,7 +317,7 @@ simpleget(int stream)
 	if (ret != DIS_SUCCESS) {
 		DBPRT(("simpleget: %s\n", dis_emsg[ret]))
 		pbs_errno = errno ? errno : EIO;
-		rpp_close(stream);
+		tpp_close(stream);
 		return -1;
 	}
 	if (num != RM_RSP_OK) {
@@ -424,7 +425,7 @@ configrm(int stream, char *file)
 		DBPRT(("configrm: diswcs %s\n", dis_emsg[ret]))
 		return -1;
 	}
-	if (rpp_flush(stream) == -1) {
+	if (dis_flush(stream) == -1) {
 		pbs_errno = errno;
 		DBPRT(("configrm: flush error %d\n", pbs_errno))
 		return -1;
@@ -499,7 +500,7 @@ addreq(int stream, char *line)
 	pbs_errno = 0;
 	if ((op = findout(stream)) == NULL)
 		return -1;
-	DIS_rpp_funcs();
+	DIS_tpp_funcs();
 	if (doreq(op, line) == -1) {
 		(void)delrm(stream);
 		return -1;
@@ -524,7 +525,7 @@ allreq(char *line)
 	struct	out	*op, *prev;
 	int		i, num;
 
-	DIS_rpp_funcs();
+	DIS_tpp_funcs();
 	pbs_errno = 0;
 	num = 0;
 	for (i=0; i<HASHOUT; i++) {
@@ -534,7 +535,7 @@ allreq(char *line)
 			if (doreq(op, line) == -1) {
 				struct	out	*hold = op;
 
-				rpp_close(op->stream);
+				tpp_close(op->stream);
 				if (prev)
 					prev->next = op->next;
 				else
@@ -573,16 +574,16 @@ getreq(int stream)
 	if ((op = findout(stream)) == NULL)
 		return NULL;
 	if (op->len >= 0) {	/* there is a message to send */
-		if (rpp_flush(stream) == -1) {
+		if (dis_flush(stream) == -1) {
 			pbs_errno = errno;
 			DBPRT(("getreq: flush error %d\n", pbs_errno))
 			(void)delrm(stream);
 			return NULL;
 		}
 		op->len = -2;
-		(void)rpp_eom(stream);
+		(void)tpp_eom(stream);
 	}
-	DIS_rpp_funcs();
+	DIS_tpp_funcs();
 	if (op->len == -2) {
 		if (simpleget(stream) == -1)
 			return NULL;
@@ -642,15 +643,15 @@ flushreq()
 		for (op=outs[i]; op; op=op->next) {
 			if (op->len <= 0)	/* no message to send */
 				continue;
-			if (rpp_flush(op->stream) == -1) {
+			if (dis_flush(op->stream) == -1) {
 				pbs_errno = errno;
 				DBPRT(("flushreq: flush error %d\n", pbs_errno))
-				rpp_close(op->stream);
+				tpp_close(op->stream);
 				op->stream = -1;
 				continue;
 			}
 			op->len = -2;
-			(void)rpp_eom(op->stream);
+			(void)tpp_eom(op->stream);
 			did++;
 		}
 
@@ -680,7 +681,7 @@ flushreq()
 /**
  * @brief
  *	Return the stream number of the next stream with something
- *	to read or a negative number (the return from rpp_poll)
+ *	to read or a negative number (the return from tpp_poll)
  *	if there is no stream to read.
  *
  * @return	int
@@ -701,7 +702,7 @@ activereq()
 	FD_ZERO(&fdset);
 
 	for (try=0; try<3;) {
-		if ((i = rpp_poll()) >= 0) {
+		if ((i = tpp_poll()) >= 0) {
 			if ((op = findout(i)) != NULL)
 				return i;
 

@@ -44,6 +44,7 @@ extern "C" {
 
 #include <time.h>
 #include <stdio.h>
+#include <netinet/in.h>
 
 /* misc_utils specific */
 
@@ -303,13 +304,13 @@ get_preemption_order(struct preempt_ordering *porder, int req, int used);
 /**
  * Begin collecting performance stats (e.g. walltime)
  */
-void 
+void
 perf_stat_start(char *instance);
 
 /**
  * Remove a performance stats entry.
  */
-void 
+void
 perf_stat_remove(char *instance);
 
 /**
@@ -323,6 +324,9 @@ void delay_query(void);
  */
 char *
 perf_stat_stop(char *instance);
+
+char * netaddr(struct sockaddr_in *);
+unsigned long crc_file(char *fname);
 
 #ifdef  __cplusplus
 }

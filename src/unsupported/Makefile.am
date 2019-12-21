@@ -47,7 +47,7 @@ dist_unsupported_SCRIPTS = \
 	pbs_stat \
 	pbs_config
 
-# Marking all *.py files as data as these files are meant to be used as hooks and 
+# Marking all *.py files as data as these files are meant to be used as hooks and
 # need no compilation.
 dist_unsupported_DATA = \
 	NodeHealthCheck.py \
@@ -70,10 +70,9 @@ pbs_rmget_CPPFLAGS = \
 	@libz_inc@ \
 	@KRB5_CFLAGS@
 pbs_rmget_LDADD = \
-	$(top_builddir)/src/lib/Libtpp/libtpp.a \
+	$(top_builddir)/src/lib/Libpbs/.libs/libpbs.a \
 	$(top_builddir)/src/lib/Liblog/liblog.a \
 	$(top_builddir)/src/lib/Libnet/libnet.a \
-	$(top_builddir)/src/lib/Libpbs/.libs/libpbs.a \
 	$(top_builddir)/src/lib/Libutil/libutil.a \
 	-lpthread \
 	@libz_lib@ \

@@ -77,6 +77,7 @@
 #include "rpp.h"
 
 
+
 /* Global Data Items: */
 extern pbs_list_head task_list_event;
 extern time_t	time_now;
@@ -714,7 +715,7 @@ issue_Drequest(int conn,
 		delete_task(ptask);
 	} else if (ppwt != 0) {
 		if (rpp) {
-			rpp_add_close_func(sock, process_DreplyRPP); /* register a close handler */
+			tpp_add_close_func(sock, process_DreplyRPP); /* register a close handler */
 
 			ptask->wt_event2 = msgid;
 			/*
@@ -807,7 +808,7 @@ process_DreplyRPP(int handle)
 	if ((pmom = tfind2((u_long) handle, 0, &streams)) == NULL)
 		return;
 
-	DIS_rpp_funcs();
+	DIS_tpp_funcs();
 
 	/* find the work task for the socket, it will point us to the request */
 	msgid = disrst(handle, &rc);

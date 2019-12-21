@@ -95,7 +95,7 @@ PBSD_mgr_put(int c, int function, int command, int objtype, char *objname,
 
 	if (rpp) {
 		pbs_errno = PBSE_NONE;
-		if (rpp_flush(c))
+		if (dis_flush(c))
 			pbs_errno = PBSE_PROTOCOL;
 		return pbs_errno;
 	}

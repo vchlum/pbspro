@@ -1264,7 +1264,7 @@ run_hook(hook *phook, unsigned int event_type, mom_hook_input_t *hook_input,
 				}
 			}
 			fprint_vnl(fp, EVENT_VNODELIST_OBJECT, vnl);
-			if (vnl_fail != NULL) { 
+			if (vnl_fail != NULL) {
 				fprint_vnl(fp,
 				  EVENT_VNODELIST_FAIL_OBJECT, vnl_fail);
 			}
@@ -2535,7 +2535,7 @@ get_hook_results(char *input_file, int *accept_flag, int *reject_flag,
 
 			int	*start_new_vnl_p;
 			vnl_t	**hvnlp_p = NULL;
-		
+
 			if (strncmp(obj_name,
 				EVENT_VNODELIST_FAIL_OBJECT,
 					vn_fail_obj_len) == 0) {
@@ -3140,7 +3140,7 @@ record_job_last_hook_executed(unsigned int hook_event,
  * successful execution, a new task will be created to run the next
  * hook script and if there was an error (the hook process returned a non-zero exit
  * status) it does not create the new task for the next hook script.
- * 
+ *
  * @param[in] 	ptask - the work task.
  *
  * @return 1 a hook accepted
@@ -3197,7 +3197,7 @@ post_run_hook(struct work_task *ptask)
 		log_err(-1, __func__, "missing input argument to event");
 		return -1;
 	}
-	
+
 	pjob = (job *)hook_input->pjob;
 	CLEAR_HEAD(vnl_changes);
 
@@ -3216,7 +3216,7 @@ post_run_hook(struct work_task *ptask)
 	snprintf(hook_outfile, MAXPATHLEN, FMT_HOOK_OUTFILE,
 		path_hooks_workdir,
 		hook_event_as_string(php->hook_event),
-		phook->hook_name, 
+		phook->hook_name,
 		(pid_t)((php->parent_wait)?php->child:ptask->wt_event));
 
 	if (php->parent_wait == 0) {
@@ -3394,8 +3394,8 @@ post_run_hook(struct work_task *ptask)
 		/* Create task to check and run next hook script */
 		new_task = set_task(WORK_Immed, 0,
 						(void *)mom_process_background_hooks, phook);
-		if (!new_task) 
-			log_err(errno, __func__, 
+		if (!new_task)
+			log_err(errno, __func__,
 				"Unable to set task for mom_process_background_hooks");
 		else
 			new_task->wt_parm2 = (void *)php;
@@ -3409,9 +3409,9 @@ post_run_hook(struct work_task *ptask)
  * @brief
  * This function replies to the outstanding request after
  * execution of the hook event was in background.
- * 
+ *
  * @param[in] pjob
- * 
+ *
  * @return void
  */
 
@@ -3428,7 +3428,7 @@ void reply_hook_bg(job *pjob)
 		switch (pjob->ji_hook_running_bg_on) {
 			case PBS_BATCH_DeleteJob:
 			case (PBS_BATCH_DeleteJob + PBSE_SISCOMM):
-				if ((pjob->ji_numnodes == 1) ||(pjob->ji_hook_running_bg_on == 
+				if ((pjob->ji_numnodes == 1) ||(pjob->ji_hook_running_bg_on ==
 					(PBS_BATCH_DeleteJob + PBSE_SISCOMM))) {
 					del_job_resc(pjob);	/* rm tmpdir, cpusets, etc */
 					pjob->ji_preq = NULL;
@@ -3441,10 +3441,10 @@ void reply_hook_bg(job *pjob)
 					* alps_cancel_reservation code in the sequence
 					* of functions started with the above call to
 					* del_job_resc().
-					*/ 
-					if (pjob->ji_numnodes == 1) 
+					*/
+					if (pjob->ji_numnodes == 1)
 						reply_ack(preq);
-					else if (pjob->ji_hook_running_bg_on == 
+					else if (pjob->ji_hook_running_bg_on ==
 						(PBS_BATCH_DeleteJob + PBSE_SISCOMM))
 							req_reject(PBSE_SISCOMM, 0, preq); /* sis down */
 #endif
@@ -3474,8 +3474,8 @@ void reply_hook_bg(job *pjob)
 				if ((ret = diswsi(server_stream, n)) != DIS_SUCCESS)
 					goto err;
 
-				rpp_flush(server_stream);
-				rpp_eom(server_stream); 
+				dis_flush(server_stream);
+				tpp_eom(server_stream);
 				break;
 		}
 	} else { /*SISTER MOM*/
@@ -3490,16 +3490,16 @@ void reply_hook_bg(job *pjob)
 	err:
 		sprintf(log_buffer, "%s", dis_emsg[ret]);
 		log_err(-1, __func__, log_buffer);
-		rpp_close(server_stream);
+		tpp_close(server_stream);
 }
 
 /**
  * @brief
  * This function loops through the hook list,
  * and runs it in the background.
- * 
- * @param[in] ptask - the work task. 
- * 
+ *
+ * @param[in] ptask - the work task.
+ *
  * @retval void
  */
  static void
@@ -3594,7 +3594,7 @@ void reply_hook_bg(job *pjob)
  * @retval 	1 means all the executed hooks have agreed to accept the request
  * @retval	2 means no hook script executed (special case).
  * @retval	-1 an internal error occurred
- * @retval	HOOK_RUNNING_IN_BACKGROUND 
+ * @retval	HOOK_RUNNING_IN_BACKGROUND
  * 				background process started for the hook script.
  *
  */
@@ -3916,7 +3916,7 @@ mom_process_hooks(unsigned int hook_event, char *req_user, char *req_host,
 		}
 
 		if (php->parent_wait == 0)
-			return (HOOK_RUNNING_IN_BACKGROUND); 
+			return (HOOK_RUNNING_IN_BACKGROUND);
 
 		task.wt_parm1 = (void *)phook;
 		task.wt_parm2 = (void *)php;

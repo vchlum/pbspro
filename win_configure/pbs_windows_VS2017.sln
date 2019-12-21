@@ -106,8 +106,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Libpbspthread", "projects\l
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pbs_python", "projects\pbs_python.vcxproj", "{F51ABB4F-2E76-44EF-9091-3DA6AF344DF8}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Libtpp", "projects\Libtpp.vcxproj", "{6009CF00-EF0F-44CA-9995-33328F067904}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pbs_idled", "projects\pbs_idled.vcxproj", "{F3D2A8D5-9A05-47DC-8ADE-8606C65D84D6}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pbs_interactive", "projects\pbs_interactive.vcxproj", "{DA1B81A6-5928-4719-A849-5C9D0869397C}"

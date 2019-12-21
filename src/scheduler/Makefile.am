@@ -107,13 +107,13 @@ sbin_PROGRAMS = pbs_sched pbsfs
 
 common_cppflags = \
 	-I$(top_srcdir)/src/include \
+	\
 	@PYTHON_INCLUDES@ \
 	@libical_inc@ \
 	@KRB5_CFLAGS@
 
 common_libs = \
 	$(builddir)/libpbs_sched.a \
-	$(top_builddir)/src/lib/Libtpp/libtpp.a \
 	$(top_builddir)/src/lib/Libutil/libutil.a \
 	$(top_builddir)/src/lib/Liblog/liblog.a \
 	$(top_builddir)/src/lib/Libpbs/.libs/libpbs.a \
@@ -139,4 +139,3 @@ dist_sysconf_DATA = \
 	pbs_holidays.2017 \
 	pbs_resource_group \
 	pbs_sched_config
-

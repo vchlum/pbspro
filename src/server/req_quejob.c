@@ -109,6 +109,7 @@
 #include "hook.h"
 #include "pbs_internal.h"
 #include "pbs_sched.h"
+
 #ifndef PBS_MOM
 #include "pbs_db.h"
 #define SEQ_WIN_INCR 1000 /*save jobid number to database in this increment*/
@@ -560,7 +561,7 @@ req_quejob(struct batch_request *preq)
 				if (!isrpp) {
 					pj->ji_qs.ji_un.ji_newt.ji_fromaddr = get_connectaddr(sock);
 				} else {
-					struct sockaddr_in* addr = rpp_getaddr(sock);
+					struct sockaddr_in* addr = tpp_getaddr(sock);
 					if (addr)
 						pj->ji_qs.ji_un.ji_newt.ji_fromaddr = (pbs_net_t)ntohl(addr->sin_addr.s_addr);
 				}
@@ -1249,7 +1250,7 @@ req_quejob(struct batch_request *preq)
 			return;
 		}
 	} else {
-		struct sockaddr_in* addr = rpp_getaddr(sock);
+		struct sockaddr_in* addr = tpp_getaddr(sock);
 		if (addr)
 			pj->ji_qs.ji_un.ji_newt.ji_fromaddr = (pbs_net_t) ntohl(addr->sin_addr.s_addr);
 		free_br(preq);
@@ -1851,7 +1852,7 @@ req_commit(struct batch_request *preq)
 	pj->ji_wattr[(int)JOB_ATR_substate].at_flags |= ATR_VFLAG_MODIFY;
 	pj->ji_qs.ji_un_type = JOB_UNION_TYPE_MOM;
 	if (preq->isrpp) {
-		struct sockaddr_in* addr = rpp_getaddr(preq->rq_conn);
+		struct sockaddr_in* addr = tpp_getaddr(preq->rq_conn);
 		if (addr)
 			pj->ji_qs.ji_un.ji_momt.ji_svraddr = (pbs_net_t) ntohl(addr->sin_addr.s_addr);
 	} else
@@ -2068,7 +2069,7 @@ locate_new_job(struct batch_request *preq, char *jobid)
 	if (!preq->isrpp) { /* Connection from TCP stream */
 		conn_addr = get_connectaddr(sock);
 	} else {
-		struct sockaddr_in* addr = rpp_getaddr(sock);
+		struct sockaddr_in* addr = tpp_getaddr(sock);
 		if (addr)
 			conn_addr = (pbs_net_t) ntohl(addr->sin_addr.s_addr);
 	}

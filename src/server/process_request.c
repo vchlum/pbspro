@@ -109,6 +109,7 @@
 #include "svrfunc.h"
 #include "pbs_sched.h"
 
+
 /* global data items */
 
 pbs_list_head svr_requests;
@@ -661,7 +662,7 @@ dispatch_request(int sfds, struct batch_request *request)
 		case PBS_BATCH_QueueJob:
 			if (rpp) {
 				request->rpp_ack = 0;
-				rpp_add_close_func(sfds, close_quejob);
+				tpp_add_close_func(sfds, close_quejob);
 			} else
 				net_add_close_func(sfds, close_quejob);
 			req_quejob(request);
@@ -734,7 +735,7 @@ dispatch_request(int sfds, struct batch_request *request)
 				request->rpp_ack = 0;
 			req_commit(request);
 			if (rpp)
-				rpp_add_close_func(sfds, (void (*)(int))0);
+				tpp_add_close_func(sfds, (void (*)(int))0);
 			else
 				net_add_close_func(sfds, (void (*)(int))0);
 			break;

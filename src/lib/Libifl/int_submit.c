@@ -56,9 +56,6 @@
 #define	IS_PROTOCOL	4
 #define	IS_PROTOCOL_VER	3
 
-
-
-
 /**
  * @brief - Start a standard inter-server message.
  *
@@ -76,7 +73,7 @@ is_compose(int stream, int command)
 
 	if (stream < 0)
 		return DIS_EOF;
-	DIS_rpp_funcs();
+	DIS_tpp_funcs();
 
 	ret = diswsi(stream, IS_PROTOCOL);
 	if (ret != DIS_SUCCESS)
@@ -213,7 +210,7 @@ PBSD_rdytocmt(int c, char *jobid, int rpp, char **msgid)
 
 	if (rpp) {
 		pbs_errno = PBSE_NONE;
-		if (rpp_flush(c))
+		if (dis_flush(c))
 			pbs_errno = PBSE_PROTOCOL;
 		return pbs_errno;
 	}
@@ -272,7 +269,7 @@ PBSD_commit(int c, char *jobid, int rpp, char **msgid)
 
 	if (rpp) {
 		pbs_errno = PBSE_NONE;
-		if (rpp_flush(c))
+		if (dis_flush(c))
 			pbs_errno = PBSE_PROTOCOL;
 		return pbs_errno;
 	}
@@ -340,7 +337,7 @@ PBSD_scbuf(int c, int reqtype, int seq, char *buf, int len, char *jobid,
 
 	if (rpp) {
 		pbs_errno = PBSE_NONE;
-		if (rpp_flush(c))
+		if (dis_flush(c))
 			pbs_errno = PBSE_PROTOCOL;
 		return pbs_errno;
 	}
@@ -555,7 +552,7 @@ PBSD_queuejob(int c, char *jobid, char *destin, struct attropl *attrib, char *ex
 
 	if (rpp) {
 		pbs_errno = PBSE_NONE;
-		if (rpp_flush(c))
+		if (dis_flush(c))
 			pbs_errno = PBSE_PROTOCOL;
 
 		return (""); /* return something NON-NULL for rpp */

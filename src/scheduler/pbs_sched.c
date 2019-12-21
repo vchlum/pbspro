@@ -58,7 +58,6 @@
  *	lock_out()
  *	are_we_primary()
  *	log_rppfail()
- *	log_tppmsg()
  *	main()
  *
  */
@@ -112,6 +111,7 @@
 #include	"globals.h"
 #include	"pbs_undolr.h"
 #include	"multi_threading.h"
+
 
 int		connector;
 int		server_sock;
@@ -807,34 +807,6 @@ log_rppfail(char *mess)
 		PBS_EVENTCLASS_SERVER, "rpp", mess);
 }
 
-/*
- * @brief
- *		This is the log handler for tpp implemented in the daemon. The pointer to
- *		this function is used by the Libtpp layer when it needs to log something to
- *		the daemon logs
- *
- * @param[in]	level	-	Logging level
- * @param[in]	objname	-	Name of the object about which logging is being done
- * @param[in]	mess	-	The log message
- *
- */
-static void
-log_tppmsg(int level, const char *objname, char *mess)
-{
-	char id[2*PBS_MAXHOSTNAME];
-	int thrd_index;
-	int etype = log_level_2_etype(level);
-
-	thrd_index = tpp_get_thrd_index();
-	if (thrd_index == -1)
-		snprintf(id, sizeof(id), "%s(Main Thread)", (objname != NULL) ? objname : msg_daemonname);
-	else
-		snprintf(id, sizeof(id), "%s(Thread %d)", (objname != NULL) ? objname : msg_daemonname, thrd_index);
-
-	log_event(etype, PBS_EVENTCLASS_TPP, level, id, mess);
-	DBPRT((mess));
-	DBPRT(("\n"));
-}
 /**
  * @brief
  * 		the entry point of the pbs_sched.
@@ -1331,9 +1303,7 @@ main(int argc, char *argv[])
 		return (1);
 	}
 
-	/* set tpp function pointers */
-	set_tpp_funcs(log_tppmsg);
-	rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, sched_port, pbs_conf.pbs_leaf_routers);
+	rc = set_tpp_config(NULL, &pbs_conf, &tpp_conf, nodename, sched_port, pbs_conf.pbs_leaf_routers);
 	free(nodename);
 
 	if (rc == -1) {
@@ -1354,7 +1324,7 @@ main(int argc, char *argv[])
 	tv.tv_usec = 0;
 	select(FD_SETSIZE, &selset, NULL, NULL, &tv);
 
-	rpp_poll(); /* to clear off the read notification */
+	tpp_poll(); /* to clear off the read notification */
 
 	/* Initialize cleanup lock */
 	if (init_mutex_attr_recursive(&attr) == 0)

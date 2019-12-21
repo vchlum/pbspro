@@ -47,6 +47,7 @@
 #include "rpp.h"
 #include "log.h"
 
+
 #define SHOW_NONE 0xff
 int log_mask;
 
@@ -134,11 +135,8 @@ main(int argc, char *argv[])
 	 */
 	log_mask = SHOW_NONE;
 
-	/* set tpp function pointers */
-	set_tpp_funcs(log_tppmsg);
-
 	/* call tpp_init */
-	rc = set_tpp_config(&pbs_conf, &tpp_conf, pbs_conf.pbs_leaf_name, -1, pbs_conf.pbs_leaf_routers);
+	rc = set_tpp_config(log_tppmsg, &pbs_conf, &tpp_conf, pbs_conf.pbs_leaf_name, -1, pbs_conf.pbs_leaf_routers);
 	if (rc == -1) {
 		fprintf(stderr, "Error setting TPP config\n");
 		return -1;
@@ -158,7 +156,7 @@ main(int argc, char *argv[])
 	tv.tv_usec = 0;
 	select(FD_SETSIZE, &selset, NULL, NULL, &tv);
 
-	rpp_poll(); /* to clear off the read notification */
+	tpp_poll(); /* to clear off the read notification */
 
 	/* Once the connection is established we can unset log_mask */
 	log_mask &= ~SHOW_NONE;

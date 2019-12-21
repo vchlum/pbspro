@@ -54,6 +54,7 @@
 #endif	/* SYSLOG */
 
 #include <sys/stat.h>
+#include <stdio.h>
 
 /*
  * include file for error/event logging
@@ -166,4 +167,3 @@ extern int  setup_env(char *filename);
 
 #define PBSEVENT_MASK	0x01ff
 #endif /* _LOG_H */
-

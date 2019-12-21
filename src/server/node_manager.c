@@ -175,6 +175,7 @@
 #include 	"pbs_sched.h"
 #include	"svrfunc.h"
 
+
 #if !defined(H_ERRNO_DECLARED) && !defined(WIN32)
 extern int h_errno;
 #endif
@@ -1089,7 +1090,7 @@ send_ip_addrs_to_mom(int stream)
 		if (ret != DIS_SUCCESS)
 			return (ret);
 	}
-	return (rpp_flush(stream));
+	return (dis_flush(stream));
 }
 
 /**
@@ -1176,9 +1177,9 @@ mom_ping_need(mominfo_t *pmom, int force_hello, int once)
 		port = pmom->mi_rmport;
 		if ((psvrmom->msr_state & INUSE_DOWN) == 0)
 			momptr_down(pmom, "ping no stream");
-		psvrmom->msr_stream = rpp_open(pmom->mi_host, port);
+		psvrmom->msr_stream = tpp_open(pmom->mi_host, port);
 		if (psvrmom->msr_stream == -1) {
-			sprintf(log_buffer, "rpp_open to %s, port %u",
+			sprintf(log_buffer, "tpp_open to %s, port %u",
 				pmom->mi_host, port);
 			log_err(errno, __func__, log_buffer);
 			return -1;
@@ -1278,7 +1279,7 @@ ping_a_mom(mominfo_t *pmom, int force_hello, int once)
 			goto err;
 	}
 
-	if (rpp_flush(psvrmom->msr_stream) == 0) {
+	if (dis_flush(psvrmom->msr_stream) == 0) {
 		/*
 		 * If the message later fails to be delivered, with TPP, the network is deemed broken,
 		 * and the stream would automatically get closed and everything will start afresh.
@@ -1294,7 +1295,7 @@ ping_a_mom(mominfo_t *pmom, int force_hello, int once)
 	ret = DIS_NOCOMMIT;
 
 err:
-	addr = rpp_getaddr(psvrmom->msr_stream);
+	addr = tpp_getaddr(psvrmom->msr_stream);
 	snprintf(log_buffer, sizeof(log_buffer), "%s %d to %s(%s)",
 		dis_emsg[ret], errno, pmom->mi_host, netaddr(addr));
 	log_err(-1, __func__, log_buffer);
@@ -1338,7 +1339,7 @@ ping_flush_mcast(int mtfd, int com)
 			goto err;
 	}
 
-	if (rpp_flush(mtfd) == 0) {
+	if (dis_flush(mtfd) == 0) {
 		/*
 		 * If the message later fails to be delivered, with TPP, the network is deemed broken,
 		 * and the stream would automatically get closed and everything will start afresh.
@@ -1367,7 +1368,7 @@ err:
 			psvrmom = (mom_svrinfo_t *) (pmom->mi_data);
 			psvrmom->msr_state &= ~INUSE_NEEDS_HELLO_PING;
 			/* find the respective mom from the stream */
-			addr = rpp_getaddr(psvrmom->msr_stream);
+			addr = tpp_getaddr(psvrmom->msr_stream);
 			snprintf(log_buffer, sizeof(log_buffer), "%s %d to %s(%s)",
 				dis_emsg[ret], errno, pmom->mi_host, netaddr(addr));
 			log_err(-1, __func__, log_buffer);
@@ -1418,7 +1419,7 @@ ping_a_mom_mcast(mominfo_t *pmom, int force_hello, int mtfd_ishello, int mtfd_is
 		snprintf(log_buffer, sizeof(log_buffer),
 				 "Failed to add mom at %s:%d to ping mcast", pmom->mi_host, pmom->mi_port);
 		log_err(-1, __func__, log_buffer);
-		rpp_close(psvrmom->msr_stream);
+		tpp_close(psvrmom->msr_stream);
 		psvrmom->msr_stream = -1;
 	}
 }
@@ -2326,7 +2327,7 @@ stat_update(int stream)
 				log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE,
 					LOG_NOTICE, mp->mi_host, "error in stat_update");
 			}
-			rpp_eom(stream);
+			tpp_eom(stream);
 			break;
 		}
 		DBPRT(("stat_update: update for %s\n", rused.ru_pjobid))
@@ -2563,7 +2564,7 @@ recv_job_obit(int stream)
 					log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE,
 						LOG_NOTICE, mp->mi_host, "error in recv_job_obit");
 				}
-				rpp_eom(stream);
+				tpp_eom(stream);
 				FREE_RUU(prused)
 			}
 		}
@@ -2588,7 +2589,7 @@ reject_obit(int stream, char *jobid)
 	if (stream != -1) {
 		if (is_compose(stream, IS_BADOBIT) == DIS_SUCCESS) {
 			if (diswst(stream, jobid) == DIS_SUCCESS)
-				rpp_flush(stream);
+				dis_flush(stream);
 		}
 	}
 }
@@ -2614,7 +2615,7 @@ ack_obit(int stream, char *jobid)
 	if (stream != -1) {
 		if (is_compose(stream, IS_ACKOBIT) == DIS_SUCCESS) {
 			if (diswst(stream, jobid) == DIS_SUCCESS)
-				rpp_flush(stream);
+				dis_flush(stream);
 		}
 	}
 }
@@ -2652,7 +2653,7 @@ send_discard_job(int stream, char *jobid, int runver, char *txt)
 		if ((rc = is_compose(stream, IS_DISCARD_JOB)) == DIS_SUCCESS) {
 			if ((rc = diswst(stream, jobid)) == DIS_SUCCESS)
 				if ((rc = diswsi(stream, runver)) == DIS_SUCCESS)
-					rpp_flush(stream);
+					dis_flush(stream);
 		}
 		if (rc != DIS_SUCCESS) {
 			mominfo_t  *mp;
@@ -3218,7 +3219,7 @@ stream_eof(int stream, int ret, char *msg)
 {
 	mominfo_t		*mp;
 
-	rpp_close(stream);
+	tpp_close(stream);
 
 	/* find who the stream belongs to and mark down */
 	if ((mp = tfind2((u_long)stream, 0, &streams)) != NULL) {
@@ -3272,7 +3273,7 @@ mark_nodes_unknown(int all)
 				set_all_state(pmom, 1, INUSE_UNKNOWN, NULL, Set_All_State_Regardless);
 				stm = psvrmom->msr_stream;
 				if (stm >= 0) {
-					rpp_close(stm);
+					tpp_close(stm);
 					tdelete2((u_long)stm, 0, &streams);
 				}
 				psvrmom->msr_stream = -1;
@@ -4436,7 +4437,7 @@ mom_running_jobs(int stream)
 			 * calls to issue_signal would reset RPP DIS routines to TCP
 			 * revert back to RPP routines before continuing
 			 */
-			DIS_rpp_funcs();
+			DIS_tpp_funcs();
 		}
 
 		/* all other cases - job left as is */
@@ -4466,7 +4467,7 @@ err:
  *
  * @par
  *		Read the stream to get a Inter-Server request.
- *		Some error cases call stream_eof instead of rpp_close because
+ *		Some error cases call stream_eof instead of tpp_close because
  *		a customer encountered a stream mixup (spid 183257) where a
  *		stream that should not have been found by tfind2 was found.
  *
@@ -4516,7 +4517,7 @@ is_request(int stream, int version)
 
 	CLEAR_HEAD(reported_hooks);
 	DBPRT(("%s: stream %d version %d\n", __func__, stream, version))
-	addr = rpp_getaddr(stream);
+	addr = tpp_getaddr(stream);
 	if (version != IS_PROTOCOL_VER) {
 		sprintf(log_buffer, "protocol version %d unknown from %s",
 			version, netaddr(addr));
@@ -4555,7 +4556,7 @@ is_request(int stream, int version)
 			DBPRT(("%s: stream %d from %s:%d already open on %d\n",
 				__func__, stream, pmom->mi_host,
 				ntohs(addr->sin_port), stm))
-			rpp_destroy(stm);
+			tpp_close(stm);
 #ifdef NAS /* localmod 005 */
 			tdelete2((u_long)stm, 0ul, &streams);
 #else
@@ -4591,7 +4592,7 @@ is_request(int stream, int version)
 		}
 
 		/* do not need to tdelete2() this stream, it was never inserted */
-		rpp_close(stream);
+		tpp_close(stream);
 
 		((mom_svrinfo_t *)(pmom->mi_data))->msr_stream = -1;
 		((mom_svrinfo_t *)(pmom->mi_data))->msr_state &= ~INUSE_INIT;
@@ -5297,7 +5298,7 @@ found:
 				ret = diswul(stream, hook_seq);
 				if (ret != DIS_SUCCESS)
 					goto err;
-				ret = rpp_flush(stream);
+				ret = dis_flush(stream);
 				if (ret != DIS_SUCCESS) {
 					ret = DIS_NOCOMMIT;
 					goto err;
@@ -5388,7 +5389,7 @@ found:
 			ret = diswul(stream, hook_seq);
 			if (ret != DIS_SUCCESS)
 				goto err;
-			ret = rpp_flush(stream);
+			ret = dis_flush(stream);
 			if (ret != DIS_SUCCESS) {
 				ret = DIS_NOCOMMIT;
 				goto err;
@@ -5581,7 +5582,7 @@ found:
 			goto err;
 	}
 
-	rpp_eom(stream);
+	tpp_eom(stream);
 	return;
 
 err:
@@ -8251,7 +8252,7 @@ shutdown_nodes(void)
 
 		ret = is_compose(psvrmom->msr_stream, IS_SHUTDOWN);
 		if (ret == DIS_SUCCESS) {
-			(void)rpp_flush(psvrmom->msr_stream);
+			(void)dis_flush(psvrmom->msr_stream);
 		}
 	}
 }
@@ -8545,7 +8546,7 @@ req_momrestart(struct batch_request *preq)
 	DBPRT(("Restart from Mom %s port %d\n", preq->rq_host, preq->rq_ind.rq_momrestart.rq_port))
 	stm = ((mom_svrinfo_t *)(pmom->mi_data))->msr_stream;
 	if (stm != -1) {
-		rpp_destroy(stm);
+		tpp_close(stm);
 		tdelete2((u_long)stm, 0, &streams);
 		((mom_svrinfo_t *)(pmom->mi_data))->msr_stream = -1;
 	}

@@ -96,7 +96,7 @@
 
 #include "rpp.h"
 #include "dis.h"
-#include "tpp_common.h"
+
 
 /*
  * app_mbox is the "monitoring mechanism" for the application
@@ -1243,7 +1243,7 @@ tpp_poll(void)
  *	It advances the "current position" in the data packet, so subsequent
  *	reads on this stream reads the next bytes from the data packet.
  *	It never advances the "current position" past the end of the data
- *	packet. To move to the next packet, the APP must call "rpp_eom/tpp_eom".
+ *	packet. To move to the next packet, the APP must call "tpp_eom/tpp_eom".
  *
  * @param[in]  sd   - The stream descriptor to which to read data
  * @param[out] data - Pointer to the buffer to read data into
@@ -1615,20 +1615,6 @@ tpp_terminate()
 	tpp_transport_terminate();
 
 	tpp_mbox_destroy(&app_mbox, 0);
-}
-
-/* NULL definitions for some unimplemented functions */
-int
-tpp_bind(unsigned int port)
-{
-	return 0;
-}
-
-/* NULL definitions for some unimplemented functions */
-int
-tpp_io(void)
-{
-	return 0;
 }
 
 /**

@@ -5766,7 +5766,7 @@ process_hup(void)
 	if (read_config(NULL) != 0) {
 		cleanup();
 		log_close(1);
-		rpp_shutdown();
+		tpp_shutdown();
 #ifdef	WIN32
 		ExitThread(1);
 #else
@@ -5990,7 +5990,7 @@ rm_request(int iochan, int version, int tcp)
 		flush_io = dis_flush;
 	}
 	else {
-		addr = rpp_getaddr(iochan);
+		addr = tpp_getaddr(iochan);
 		if (addr == NULL) {
 			sprintf(log_buffer, "Sender unknown");
 			goto bad;
@@ -5998,8 +5998,8 @@ rm_request(int iochan, int version, int tcp)
 
 		ipadd = ntohl(addr->sin_addr.s_addr);
 		port = ntohs((unsigned short)addr->sin_port);
-		close_io = (void(*)(int))pfn_rpp_close;
-		flush_io = pfn_rpp_flush;
+		close_io = (void(*)(int))tpp_close;
+		flush_io = dis_flush;
 	}
 	if (version != RM_PROTOCOL_VER) {
 		sprintf(log_buffer, "protocol version %d unknown", version);
@@ -6141,7 +6141,7 @@ rm_request(int iochan, int version, int tcp)
 			if (len != 0) {
 				cleanup();
 				log_close(1);
-				rpp_shutdown();
+				tpp_shutdown();
 #ifdef	WIN32
 				ExitThread(1);
 #else
@@ -6170,7 +6170,7 @@ rm_request(int iochan, int version, int tcp)
 			close_io(iochan);
 			cleanup();
 			log_close(1);
-			rpp_shutdown();
+			tpp_shutdown();
 #ifdef	WIN32
 			ExitThread(0);
 #else
@@ -6218,7 +6218,7 @@ bad:
 	 ** to be initialized. So, Initialize accordingly before use.
 	 */
 	if (close_io == NULL) {
-		close_io = (tcp) ?(close_conn):((void (*)(int))pfn_rpp_close);
+		close_io = (tcp) ?(close_conn):((void (*)(int))tpp_close);
 	}
 
 	close_io(iochan);
@@ -6243,7 +6243,7 @@ do_rpp(int stream)
 	void	is_request	(int stream, int version);
 	void	im_eof		(int stream, int ret);
 
-	DIS_rpp_funcs();
+	DIS_tpp_funcs();
 	proto = disrsi(stream, &ret);
 	if (ret != DIS_SUCCESS) {
 		im_eof(stream, ret);
@@ -6261,7 +6261,7 @@ do_rpp(int stream)
 		case	RM_PROTOCOL:
 			DBPRT(("%s: got a resource monitor request\n", __func__))
 			if (rm_request(stream, version, 0) == 0)
-				rpp_eom(stream);
+				tpp_eom(stream);
 			break;
 
 		case	IM_PROTOCOL:
@@ -6276,7 +6276,7 @@ do_rpp(int stream)
 
 		default:
 			DBPRT(("%s: unknown request %d\n", __func__, proto))
-			rpp_close(stream);
+			tpp_close(stream);
 			break;
 	}
 }
@@ -6301,11 +6301,11 @@ rpp_request(int fd)
 	int	i;
 	/* To reduce rpp process storm reducing max do_rpp processing to 3 times */
 	for (i=0 ; i < MAX_RPP_LOOPS ; i++) {
-		if ((stream = rpp_poll()) == -1) {
+		if ((stream = tpp_poll()) == -1) {
 #ifdef	WIN32
 			if (errno != 10054)
 #endif
-				log_err(errno, __func__, "rpp_poll");
+				log_err(errno, __func__, "tpp_poll");
 			break;
 		}
 		if (stream == -2)
@@ -8075,37 +8075,6 @@ log_rppfail(char *mess)
 		PBS_EVENTCLASS_SERVER, "rpp", mess);
 }
 
-/**
- * @brief
- *	This is the log handler for tpp implemented in the daemon. The pointer to
- *	this function is used by the Libtpp layer when it needs to log something to
- *	the daemon logs
- *
- * @param[in] level   - Logging level
- * @param[in] objname - Name of the object about which logging is being done
- * @param[in] messa   - The log message
- *
- * @return	Void
- *
- */
-static void
-log_tppmsg(int level, const char *objname, char *mess)
-{
-	char id[2*PBS_MAXHOSTNAME];
-	int thrd_index;
-	int etype = log_level_2_etype(level);
-
-	thrd_index = tpp_get_thrd_index();
-	if (thrd_index == -1)
-		snprintf(id, sizeof(id), "%s(Main Thread)", (objname != NULL) ? objname : msg_daemonname);
-	else
-		snprintf(id, sizeof(id), "%s(Thread %d)", (objname != NULL) ? objname : msg_daemonname, thrd_index);
-
-	log_event(etype, PBS_EVENTCLASS_TPP, level, id, mess);
-	DBPRT((mess));
-	DBPRT(("\n"));
-}
-
 /*
  * @brief
  *	Function called by the Libtpp layer when the network connection to
@@ -8122,7 +8091,7 @@ net_restore_handler(void *data)
 {
 	mom_net_up = 1;
 	mom_net_up_time = time(0);
-	log_tppmsg(LOG_INFO, msg_daemonname, "net restore handler called");
+	tpp_log_func(LOG_INFO, msg_daemonname, "net restore handler called");
 	send_restart();
 }
 
@@ -8145,14 +8114,14 @@ net_down_handler(void *data)
 	hnodent	*np;
 	job		*pjob;
 
-	log_tppmsg(LOG_INFO, msg_daemonname, "net down handler called");
+	tpp_log_func(LOG_INFO, msg_daemonname, "net down handler called");
 	if (server_stream >= 0) {
 		sprintf(log_buffer, "Closing existing server stream %d",
 			server_stream);
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_NOTICE,
 			msg_daemonname, log_buffer);
-		rpp_flush(server_stream);
-		rpp_close(server_stream);
+		dis_flush(server_stream);
+		tpp_close(server_stream);
 		server_stream = -1;
 	}
 
@@ -8165,8 +8134,8 @@ net_down_handler(void *data)
 			num < pjob->ji_numnodes;
 			num++, np++) {
 			if (np->hn_stream >= 0) {
-				rpp_flush(np->hn_stream);
-				rpp_close(np->hn_stream);
+				dis_flush(np->hn_stream);
+				tpp_close(np->hn_stream);
 				np->hn_stream = -1;
 			}
 		}
@@ -9327,9 +9296,7 @@ main(int argc, char *argv[])
 		return (1);
 	}
 
-	/* set tcp function pointers */
-	set_tpp_funcs(log_tppmsg);
-	rc = set_tpp_config(&pbs_conf, &tpp_conf, nodename, pbs_rm_port, pbs_conf.pbs_leaf_routers);
+	rc = set_tpp_config(NULL, &pbs_conf, &tpp_conf, nodename, pbs_rm_port, pbs_conf.pbs_leaf_routers);
 	free(nodename);
 
 	if (rc == -1) {
@@ -10155,7 +10122,7 @@ main(int argc, char *argv[])
 							struct sockaddr_in *ap;
 							/* We always have a stream open to MS at node 0 */
 							i = pjob->ji_hosts[0].hn_stream;
-							if ((ap = rpp_getaddr(i)) == NULL) {
+							if ((ap = tpp_getaddr(i)) == NULL) {
 								log_joberr(-1, "over_limit_message",
 									"cannot write to job stderr because there is no stream to MS",
 									pjob->ji_qs.ji_jobid);
@@ -10210,7 +10177,7 @@ main(int argc, char *argv[])
 	(void)mom_close_poll();
 
 	net_close(-1);		/* close all network connections */
-	rpp_shutdown();
+	tpp_shutdown();
 
 	/* Have we any jobs that can be purged before we go away? */
 
@@ -10831,7 +10798,7 @@ do_multinodebusy(job *pjob, int which)
 			im_compose(stream, pjob->ji_qs.ji_jobid,
 				pjob->ji_wattr[(int)JOB_ATR_Cookie].at_val.at_str,
 				IM_REQUEUE, TM_NULL_EVENT, TM_NULL_TASK, IM_OLD_PROTOCOL_VER);
-			rpp_flush(stream);
+			dis_flush(stream);
 		}
 	}
 }
