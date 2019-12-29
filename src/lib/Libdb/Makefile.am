@@ -40,7 +40,7 @@ noinst_LIBRARIES = libdb.a
 
 libdb_a_CPPFLAGS = \
 	-I$(top_srcdir)/src/include \
-	@database_inc@
+	@database_inc@ @KRB5_CFLAGS@
 
 libdb_a_SOURCES = \
 	db_postgres.h \

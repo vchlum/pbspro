@@ -85,7 +85,7 @@ pbs_ds_monitor_LDADD = \
 
 pbs_ds_monitor_SOURCES = pbs_ds_monitor.c
 
-pbs_idled_CPPFLAGS = ${X_CFLAGS} -I$(top_srcdir)/src/include
+pbs_idled_CPPFLAGS = ${X_CFLAGS} -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_idled_LDADD = \
 	${common_libs} \
 	${X_PRE_LIBS} \
@@ -93,13 +93,13 @@ pbs_idled_LDADD = \
 	-lX11
 pbs_idled_SOURCES = pbs_idled.c
 
-pbs_hostn_CPPFLAGS = -I$(top_srcdir)/src/include
+pbs_hostn_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_hostn_LDADD = ${common_libs}
 pbs_hostn_SOURCES = hostn.c
 
 pbs_probe_CPPFLAGS = \
 	-I$(top_srcdir)/src/include \
-	@PYTHON_INCLUDES@
+	@PYTHON_INCLUDES@ @KRB5_CFLAGS@
 pbs_probe_LDADD = \
 	${common_libs} \
 	@PYTHON_LDFLAGS@ \
@@ -167,7 +167,7 @@ pbs_upgrade_job_SOURCES = pbs_upgrade_job.c
 
 pbs_wish_CPPFLAGS = \
 	-I$(top_srcdir)/src/include \
-	@tk_inc@
+	@tk_inc@ @KRB5_CFLAGS@
 pbs_wish_LDADD = \
 	$(top_builddir)/src/lib/Liblog/liblog.a \
 	$(top_builddir)/src/lib/Libpbs/.libs/libpbs.a \
@@ -182,14 +182,14 @@ pbs_wish_SOURCES = \
 	site_tclWrap.c \
 	pbsTkInit.c
 
-printjob_bin_CPPFLAGS = -I$(top_srcdir)/src/include
+printjob_bin_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 printjob_bin_LDADD = ${common_libs}
 printjob_bin_SOURCES = printjob.c
 
 printjob_svr_bin_CPPFLAGS = \
 	-I$(top_srcdir)/src/include \
 	-I$(top_srcdir)/src/lib/Libdb \
-	@database_inc@ \
+	@database_inc@ @KRB5_CFLAGS@ \
 	-DPRINTJOBSVR
 printjob_svr_bin_LDADD = \
 	$(top_builddir)/src/lib/Libdb/libdb.a \
@@ -209,7 +209,7 @@ rstester_CPPFLAGS = -I$(top_srcdir)/src/include
 rstester_LDADD = ${common_libs}
 rstester_SOURCES = rstester.c
 
-tracejob_CPPFLAGS = -I$(top_srcdir)/src/include
+tracejob_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 tracejob_LDADD = ${common_libs}
 tracejob_SOURCES = \
 	tracejob.c \

@@ -94,25 +94,25 @@ common_libs = \
 	@socket_lib@ \
 	@KRB5_LIBS@
 
-pbsdsh_CPPFLAGS = -I$(top_srcdir)/src/include
+pbsdsh_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbsdsh_LDADD = ${common_libs}
 pbsdsh_SOURCES = pbsdsh.c
 
-pbsnodes_CPPFLAGS = -I$(top_srcdir)/src/include
+pbsnodes_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbsnodes_LDADD = ${common_libs}
 pbsnodes_SOURCES = pbsnodes.c
 
-pbs_attach_CPPFLAGS = -I$(top_srcdir)/src/include
+pbs_attach_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_attach_LDADD = ${common_libs}
 pbs_attach_SOURCES = pbs_attach.c
 
-pbs_demux_CPPFLAGS = -I$(top_srcdir)/src/include
+pbs_demux_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_demux_LDADD = ${common_libs}
 pbs_demux_SOURCES = pbs_demux.c
 
 pbs_ds_password_bin_CPPFLAGS = \
 	-I$(top_srcdir)/src/include \
-	@database_inc@
+	@database_inc@ @KRB5_CFLAGS@
 pbs_ds_password_bin_LDADD = \
 	$(top_builddir)/src/lib/Libdb/libdb.a \
 	${common_libs} \
@@ -122,107 +122,107 @@ pbs_ds_password_bin_LDADD = \
 
 pbs_ds_password_bin_SOURCES = pbs_ds_password.c
 
-pbs_password_CPPFLAGS = -I$(top_srcdir)/src/include
+pbs_password_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_password_LDADD = ${common_libs}
 pbs_password_SOURCES = pbs_password.c
 
-pbs_tmrsh_CPPFLAGS = -I$(top_srcdir)/src/include
+pbs_tmrsh_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_tmrsh_LDADD = ${common_libs}
 pbs_tmrsh_SOURCES = pbs_tmrsh.c
 
-pbs_ralter_CPPFLAGS = -I$(top_srcdir)/src/include
+pbs_ralter_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_ralter_LDADD = ${common_libs}
 pbs_ralter_SOURCES = pbs_ralter.c cmds_common.c
 
-pbs_rdel_CPPFLAGS = -I$(top_srcdir)/src/include
+pbs_rdel_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_rdel_LDADD = ${common_libs}
 pbs_rdel_SOURCES = pbs_rdel.c
 
-pbs_rstat_CPPFLAGS = -I$(top_srcdir)/src/include
+pbs_rstat_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_rstat_LDADD = ${common_libs}
 pbs_rstat_SOURCES = pbs_rstat.c
 
-pbs_rsub_CPPFLAGS = -I$(top_srcdir)/src/include
+pbs_rsub_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_rsub_LDADD = ${common_libs}
 pbs_rsub_SOURCES = pbs_rsub.c cmds_common.c
 
-pbs_migrate_users_CPPFLAGS = -I$(top_srcdir)/src/include
+pbs_migrate_users_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_migrate_users_LDADD = ${common_libs}
 pbs_migrate_users_SOURCES = pbs_migrate_users.c
 
-pbs_release_nodes_CPPFLAGS = -I$(top_srcdir)/src/include
+pbs_release_nodes_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 pbs_release_nodes_LDADD = ${common_libs}
 pbs_release_nodes_SOURCES = pbs_release_nodes.c
 
-qalter_CPPFLAGS = -I$(top_srcdir)/src/include
+qalter_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qalter_LDADD = ${common_libs}
 qalter_SOURCES = qalter.c cmds_common.c
 
-qdel_CPPFLAGS = -I$(top_srcdir)/src/include
+qdel_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qdel_LDADD = ${common_libs}
 qdel_SOURCES = qdel.c
 
-qdisable_CPPFLAGS = -I$(top_srcdir)/src/include
+qdisable_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qdisable_LDADD = ${common_libs}
 qdisable_SOURCES = qdisable.c
 
-qenable_CPPFLAGS = -I$(top_srcdir)/src/include
+qenable_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qenable_LDADD = ${common_libs}
 qenable_SOURCES = qenable.c
 
-qhold_CPPFLAGS = -I$(top_srcdir)/src/include
+qhold_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qhold_LDADD = ${common_libs}
 qhold_SOURCES = qhold.c
 
 qmgr_CPPFLAGS = \
 	-I$(top_srcdir)/src/include \
-	@editline_inc@
+	@editline_inc@ @KRB5_CFLAGS@
 qmgr_LDADD = \
 	${common_libs} \
 	@editline_lib@
 qmgr_SOURCES = qmgr.c cmds_common.c
 
-qmove_CPPFLAGS = -I$(top_srcdir)/src/include
+qmove_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qmove_LDADD = ${common_libs}
 qmove_SOURCES = qmove.c
 
-qorder_CPPFLAGS = -I$(top_srcdir)/src/include
+qorder_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qorder_LDADD = ${common_libs}
 qorder_SOURCES = qorder.c
 
-qmsg_CPPFLAGS = -I$(top_srcdir)/src/include
+qmsg_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qmsg_LDADD = ${common_libs}
 qmsg_SOURCES = qmsg.c
 
-qrerun_CPPFLAGS = -I$(top_srcdir)/src/include
+qrerun_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qrerun_LDADD = ${common_libs}
 qrerun_SOURCES = qrerun.c
 
-qrls_CPPFLAGS = -I$(top_srcdir)/src/include
+qrls_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qrls_LDADD = ${common_libs}
 qrls_SOURCES = qrls.c
 
-qrun_CPPFLAGS = -I$(top_srcdir)/src/include
+qrun_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qrun_LDADD = ${common_libs}
 qrun_SOURCES = qrun.c
 
-qselect_CPPFLAGS = -I$(top_srcdir)/src/include
+qselect_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qselect_LDADD = ${common_libs}
 qselect_SOURCES = qselect.c
 
-qsig_CPPFLAGS = -I$(top_srcdir)/src/include
+qsig_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qsig_LDADD = ${common_libs}
 qsig_SOURCES = qsig.c
 
-qstat_CPPFLAGS = -I$(top_srcdir)/src/include
+qstat_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qstat_LDADD = ${common_libs}
 qstat_SOURCES = qstat.c
 
-qstart_CPPFLAGS = -I$(top_srcdir)/src/include
+qstart_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qstart_LDADD = ${common_libs}
 qstart_SOURCES = qstart.c
 
-qstop_CPPFLAGS = -I$(top_srcdir)/src/include
+qstop_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qstop_LDADD = ${common_libs}
 qstop_SOURCES = qstop.c
 
@@ -230,7 +230,7 @@ qsub_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qsub_LDADD = ${common_libs}
 qsub_SOURCES = qsub.c cmds_common.c
 
-qterm_CPPFLAGS = -I$(top_srcdir)/src/include
+qterm_CPPFLAGS = -I$(top_srcdir)/src/include @KRB5_CFLAGS@
 qterm_LDADD = ${common_libs}
 qterm_SOURCES = qterm.c
 
